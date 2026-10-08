@@ -238,3 +238,29 @@ test('a stored profile whose home is gone boots default instead of a missing --p
     fs.rmSync(root, { recursive: true, force: true })
   }
 })
+
+test('a local rename moves the saved startup profile after its old home is gone', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'desktop-profile-rename-'))
+  const target = path.join(root, 'active-profile.json')
+  const profilesRoot = path.join(root, 'profiles')
+  fs.mkdirSync(path.join(profilesRoot, 'work'), { recursive: true })
+  const profileExists = (name: string) => fs.existsSync(path.join(profilesRoot, name))
+
+  try {
+    const preferences = createDesktopProfilePreferences(target, { profileExists })
+    preferences.remember('work')
+    // The backend has already renamed the home when the response comes back.
+    fs.renameSync(path.join(profilesRoot, 'work'), path.join(profilesRoot, 'job'))
+
+    preferences.afterProfileRequest(
+      null,
+      { method: 'PATCH', path: '/api/profiles/work', body: { new_name: 'job' } },
+      { ok: true },
+      'local'
+    )
+
+    assert.equal(createDesktopProfilePreferences(target, { profileExists }).readActive(), 'job')
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})

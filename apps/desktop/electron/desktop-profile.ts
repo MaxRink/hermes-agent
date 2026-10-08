@@ -122,16 +122,18 @@ export function createDesktopProfilePreferences(
     }
   }
 
-  function readActive(): null | string {
+  function readStored(): null | string {
     const value = read().profile
     const profile = typeof value === 'string' ? value.trim() : ''
 
-    if (!DESKTOP_PROFILE_NAME_RE.test(profile)) {
-      return null
-    }
+    return DESKTOP_PROFILE_NAME_RE.test(profile) ? profile : null
+  }
+
+  function readActive(): null | string {
+    const profile = readStored()
 
     // A stored profile whose home is gone boots default: `--profile <missing>` would fail the backend.
-    return profile === 'default' || options.profileExists?.(profile) !== false ? profile : null
+    return profile === 'default' || (profile && options.profileExists?.(profile) !== false) ? profile : null
   }
 
   function remember(name: unknown): null | string {
@@ -161,7 +163,8 @@ export function createDesktopProfilePreferences(
   }
 
   function profileChanged(connectionId: null | string, oldName: string, newName: null | string, backendMode: string) {
-    if (backendMode === 'local' && readActive() === oldName) {
+    // A finished rename or delete has already removed oldName's home, so match the saved name, not readActive.
+    if (backendMode === 'local' && readStored() === oldName) {
       remember(newName || 'default')
     }
 
