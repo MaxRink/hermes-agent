@@ -109,7 +109,7 @@ const registry: DesktopConnectionsRegistry = {
 }
 
 const list = vi.fn(async () => registry)
-const api = vi.fn(async () => ({ profiles: [] }))
+const api = vi.fn(async (): Promise<{ profiles: { name: string }[] }> => ({ profiles: [] }))
 const setLastUsed = vi.fn(async (id: string) => ({ ok: true, registry: { ...registry, lastUsed: id } }))
 
 beforeEach(() => {
@@ -381,10 +381,40 @@ describe('selectConnection', () => {
     $connection.set({ connectionId: 'homelab', mode: 'remote', registryScoped: true })
     $activeGatewayProfile.set('default')
     $profilesByConnection.set(new Map([['local', [{ name: 'default' }, { name: 'work' }]]]))
+    api.mockResolvedValue({ profiles: [{ name: 'default' }, { name: 'work' }] })
 
     await selectConnection('local')
 
     expect(ensureGatewayAgent).toHaveBeenCalledWith('local', 'default', expect.anything())
+  })
+
+  it('keeps the remembered profile when only a stale cached list lacks it', async () => {
+    setConnectionsRegistry(registry)
+    $connection.set({ connectionId: 'local', mode: 'local', profile: 'research', registryScoped: true })
+    $activeGatewayProfile.set('research')
+    $connection.set({ connectionId: 'homelab', mode: 'remote', registryScoped: true })
+    $activeGatewayProfile.set('default')
+    // The list refresh after creating `research` failed, so the cache predates it.
+    $profilesByConnection.set(new Map([['local', [{ name: 'default' }]]]))
+    api.mockResolvedValue({ profiles: [{ name: 'default' }, { name: 'research' }] })
+
+    await selectConnection('local')
+
+    expect(ensureGatewayAgent).toHaveBeenCalledWith('local', 'research', expect.anything())
+  })
+
+  it('keeps the remembered profile when the backend cannot confirm it is gone', async () => {
+    setConnectionsRegistry(registry)
+    $connection.set({ connectionId: 'local', mode: 'local', profile: 'research', registryScoped: true })
+    $activeGatewayProfile.set('research')
+    $connection.set({ connectionId: 'homelab', mode: 'remote', registryScoped: true })
+    $activeGatewayProfile.set('default')
+    $profilesByConnection.set(new Map([['local', [{ name: 'default' }]]]))
+    api.mockRejectedValue(new Error('backend unreachable'))
+
+    await selectConnection('local')
+
+    expect(ensureGatewayAgent).toHaveBeenCalledWith('local', 'research', expect.anything())
   })
 
   it('does not remember a migrated v1 routing alias as a backend profile', async () => {

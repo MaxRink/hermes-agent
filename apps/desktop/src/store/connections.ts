@@ -125,12 +125,23 @@ $activeConnectionProfile.subscribe(({ connectionId, descriptorProfile, profile, 
   $lastProfileByConnection.set({ ...$lastProfileByConnection.get(), [connectionId]: profile })
 })
 
-// The profile last used on a source, unless that source's known list no longer has it (deleted elsewhere).
-function rememberedProfile(connectionId: string): string {
-  const key = normalizeProfileKey($lastProfileByConnection.get()[connectionId])
-  const listed = $profilesByConnection.get().get(connectionId)
+const listsProfile = (profiles: readonly { name: string }[], key: string) =>
+  profiles.some(profile => normalizeProfileKey(profile.name) === key)
 
-  return !listed || listed.some(profile => normalizeProfileKey(profile.name) === key) ? key : 'default'
+// The profile last used on a source; default only once that source's backend no longer lists it (deleted
+// elsewhere). The cached list can predate the profile (a failed refresh after create), so it only triggers the check.
+function rememberedProfile(connectionId: string): Promise<string> | string {
+  const key = normalizeProfileKey($lastProfileByConnection.get()[connectionId])
+  const cached = $profilesByConnection.get().get(connectionId)
+
+  if (!cached || listsProfile(cached, key)) {
+    return key
+  }
+
+  return getProfiles({ connectionId, profile: 'default' }).then(
+    ({ profiles }) => (listsProfile(profiles, key) ? key : 'default'),
+    () => key
+  )
 }
 
 /** @internal Reset module-owned preferences and switch coordination for tests. */
@@ -383,11 +394,12 @@ export async function selectConnection(connectionId: string, options: SelectConn
   // browse-mode preference alone so it survives restart (#93197).
   const restoreOnBoot = pendingTarget === null && $activeConnectionId.get() === null
 
+  const explicitProfile = String(options.profile ?? '').trim()
+  // Only a remembered profile the cache lacks waits on the backend; every other pick stays synchronous.
+  const remembered = explicitProfile || rememberedProfile(connectionId)
+  const targetProfile = normalizeProfileKey(typeof remembered === 'string' ? remembered : await remembered)
   const currentConnectionId = $activeConnectionId.get()
   const currentProfile = normalizeProfileKey($activeGatewayProfile.get())
-  const explicitProfile = String(options.profile ?? '').trim()
-
-  const targetProfile = normalizeProfileKey(explicitProfile || rememberedProfile(connectionId))
 
   const targetKey = `${connectionId}::${targetProfile}`
 
