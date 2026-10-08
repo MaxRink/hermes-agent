@@ -294,14 +294,6 @@ _RAW_INLINE_TOOL_EXECUTORS: dict[str, InlineToolExecutor] = {
         "tools.set_theme_tool", "set_theme_tool", "theme_callback",
         ("accent", "accent"), ("mode", "mode"), ("layout", "layout"), ("picker", "picker"),
     ),
-    # The session id keys the card facts its /initiate-setup turn recorded.
-    "setup_choose": _tool(
-        "tools.setup_choose_tool", "setup_choose_tool",
-        ("kind", "kind", ""), ("question", "question", ""), ("options", "options"),
-        ("multi_select", "multi_select"),
-        callback=lambda agent, ctx: getattr(agent, "setup_choose_callback", None),
-        session_id=lambda agent, ctx: getattr(agent, "session_id", None),
-    ),
     "setup_beat": _setup_beat,
     "manage_connections": _manage_connections,
     "manage_catalog": _manage_catalog,

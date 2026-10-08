@@ -143,12 +143,8 @@ TOOLSETS = {
          "annotate_preview", "read_window_below", "focus_pane", "react_to_message",
          "gui_tour", "show_tip", "set_theme"],
     ),
-    "setup": _ts("Onboarding-only surface for the setup profile: question and picker cards", ["setup_choose"],
-                 platforms=frozenset({"desktop"})),
     "onboarding": _ts("First-run onboarding cards; folded in only for the onboarding chat (tui_gateway/methods_onboarding.py)",
                       ["setup_beat"], platforms=frozenset({"desktop"})),
-    "start_chat": _ts("Start a new visible desktop chat that runs a task in a chosen profile", ["start_chat"],
-                      platforms=frozenset({"desktop"})),
     # ``platforms``: the session platforms this toolset exists for (TOOLSET_SESSION_PLATFORMS).
     "catalog": _ts(
         "Desktop catalog plugin/skill install requests through the approval card (GUI sessions only)",
@@ -475,8 +471,13 @@ def agent_tool_drops(agent: Any) -> frozenset:
     return side_agent_tool_drops(agent) | session_platform_tool_drops(getattr(agent, "platform", None))
 
 
+# Toolsets the desktop's agentic onboarding added and then lost; old configs still list them. Accepted
+# so they drop quietly (they resolve to no tools) instead of warning on every launch.
+_RETIRED_TOOLSETS = frozenset({"setup", "start_chat"})
+
+
 def validate_toolset(name: str) -> bool:
-    return (name in {"all", "*"} or name in TOOLSETS
+    return (name in {"all", "*"} or name in TOOLSETS or name in _RETIRED_TOOLSETS
             or name in _get_plugin_toolset_names() or name in _get_registry_toolset_aliases())
 
 
