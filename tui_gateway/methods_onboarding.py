@@ -295,18 +295,6 @@ def _(rid, params: dict) -> dict:
     return _ok(rid, {"name": setup.name, "path": str(setup.path), "reset": True})
 
 
-# The /initiate-setup slash builtin (methods_tools._SLASH_BUILTINS): the skill plus the facts block as one turn.
-def _cmd_initiate_setup(rid, params, session, name, arg):
-    with _session_profile_runtime_scope(session or {}):
-        enabled, disabled = _session_toolsets(session)
-        tools = _tools_mod("model_tools").get_tool_definitions(
-            enabled_toolsets=enabled, disabled_toolsets=disabled, quiet_mode=True, skip_tool_search_assembly=True)
-        surface = _resolve_agent_platform(_session_source(session))
-        primary = _tools_mod("hermes_cli.setup_profile").primary_profile(_launch_home())
-        message = _tools_mod("agent.initiate_setup_prompt").build_initiate_setup_prompt(
-            surface, [tool["function"]["name"] for tool in tools], primary, (session or {}).get("session_key"))
-    return _ok(rid, {"type": "send", "message": message, "display": "/initiate-setup"})
-
 def _onboarding_state_result(rid, change) -> dict:
     from hermes_cli.setup_profile import find_setup_profile, onboarding_eligible
     try:
