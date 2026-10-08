@@ -417,6 +417,25 @@ describe('selectConnection', () => {
     expect(ensureGatewayAgent).toHaveBeenCalledWith('local', 'research', expect.anything())
   })
 
+  it('a later pick wins over an earlier one still checking its remembered profile', async () => {
+    setConnectionsRegistry(registry)
+    $connection.set({ connectionId: 'local', mode: 'local', profile: 'research', registryScoped: true })
+    $activeGatewayProfile.set('research')
+    $connection.set({ connectionId: 'homelab', mode: 'remote', registryScoped: true })
+    $activeGatewayProfile.set('default')
+    $profilesByConnection.set(new Map([['local', [{ name: 'default' }]]]))
+    const listing = deferred<{ profiles: { name: string }[] }>()
+    api.mockReturnValueOnce(listing.promise)
+
+    const earlier = selectConnection('local')
+    await selectConnection('work-vps')
+    listing.resolve({ profiles: [{ name: 'default' }, { name: 'research' }] })
+    await earlier
+
+    expect(ensureGatewayAgent).not.toHaveBeenCalledWith('local', expect.anything(), expect.anything())
+    expect($activeConnectionId.get()).toBe('work-vps')
+  })
+
   it('does not remember a migrated v1 routing alias as a backend profile', async () => {
     setConnectionsRegistry(registry)
     $connection.set({ connectionId: 'homelab', mode: 'remote' })

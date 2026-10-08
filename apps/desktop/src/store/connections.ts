@@ -79,6 +79,9 @@ const $lastProfileByConnection = atom<Record<string, string>>(storedStringRecord
 let pendingTarget: null | string = null
 let restoreAttempted = false
 let switchRevision = 0
+// Counts every pick, including ones that never start a switch, so a pick that waited on its source's backend
+// can tell a later pick happened while it waited.
+let selectRevision = 0
 
 export const $pendingConnectionId = atom<null | string>(null)
 
@@ -128,20 +131,44 @@ $activeConnectionProfile.subscribe(({ connectionId, descriptorProfile, profile, 
 const listsProfile = (profiles: readonly { name: string }[], key: string) =>
   profiles.some(profile => normalizeProfileKey(profile.name) === key)
 
+// A pick either knows its profile now or waits on the backend; only a wait can be overtaken (null).
+type ProfilePick = { kind: 'ready'; profile: string } | { kind: 'pending'; profile: Promise<null | string> }
+
 // The profile last used on a source; default only once that source's backend no longer lists it (deleted
 // elsewhere). The cached list can predate the profile (a failed refresh after create), so it only triggers the check.
-function rememberedProfile(connectionId: string): Promise<string> | string {
+function rememberedProfile(connectionId: string): ProfilePick {
   const key = normalizeProfileKey($lastProfileByConnection.get()[connectionId])
   const cached = $profilesByConnection.get().get(connectionId)
 
   if (!cached || listsProfile(cached, key)) {
-    return key
+    return { kind: 'ready', profile: key }
   }
 
-  return getProfiles({ connectionId, profile: 'default' }).then(
+  const listed = getProfiles({ connectionId, profile: 'default' }).then(
     ({ profiles }) => (listsProfile(profiles, key) ? key : 'default'),
     () => key
   )
+
+  return { kind: 'pending', profile: listed }
+}
+
+// The profile a pick lands on: the one asked for, else the one last used there. Only a remembered profile
+// the cache lacks waits on the backend (every other pick stays synchronous); null when a later pick
+// arrived during that wait.
+function pickedProfile(connectionId: string, explicit: null | string | undefined): ProfilePick {
+  const asked = String(explicit ?? '').trim()
+  const remembered: ProfilePick = asked ? { kind: 'ready', profile: asked } : rememberedProfile(connectionId)
+  const pick = ++selectRevision
+
+  if (remembered.kind === 'ready') {
+    return { kind: 'ready', profile: normalizeProfileKey(remembered.profile) }
+  }
+
+  const settled = remembered.profile.then(profile =>
+    pick === selectRevision && profile !== null ? normalizeProfileKey(profile) : null
+  )
+
+  return { kind: 'pending', profile: settled }
 }
 
 /** @internal Reset module-owned preferences and switch coordination for tests. */
@@ -150,6 +177,7 @@ export function _resetConnectionsForTests(): void {
   pendingTarget = null
   restoreAttempted = false
   switchRevision = 0
+  selectRevision = 0
   $pendingConnectionId.set(null)
 }
 
@@ -394,10 +422,13 @@ export async function selectConnection(connectionId: string, options: SelectConn
   // browse-mode preference alone so it survives restart (#93197).
   const restoreOnBoot = pendingTarget === null && $activeConnectionId.get() === null
 
-  const explicitProfile = String(options.profile ?? '').trim()
-  // Only a remembered profile the cache lacks waits on the backend; every other pick stays synchronous.
-  const remembered = explicitProfile || rememberedProfile(connectionId)
-  const targetProfile = normalizeProfileKey(typeof remembered === 'string' ? remembered : await remembered)
+  const picked = pickedProfile(connectionId, options.profile)
+  const targetProfile = picked.kind === 'ready' ? picked.profile : await picked.profile
+
+  if (targetProfile === null) {
+    return
+  }
+
   const currentConnectionId = $activeConnectionId.get()
   const currentProfile = normalizeProfileKey($activeGatewayProfile.get())
 
