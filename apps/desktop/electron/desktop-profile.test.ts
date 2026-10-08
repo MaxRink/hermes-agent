@@ -229,7 +229,11 @@ test('a stored profile whose home is gone boots default instead of a missing --p
     preferences.remember('work')
     assert.equal(preferences.readActive(), 'work')
 
+    // Explicitly default, not "no preference": that would let the CLI's active profile choose the home.
     preferences.remember('hermes-setup')
+    assert.equal(preferences.readActive(), 'default')
+
+    preferences.remember(null)
     assert.equal(preferences.readActive(), null)
 
     preferences.remember('default')

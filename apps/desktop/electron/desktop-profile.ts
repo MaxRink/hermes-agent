@@ -132,8 +132,14 @@ export function createDesktopProfilePreferences(
   function readActive(): null | string {
     const profile = readStored()
 
-    // A stored profile whose home is gone boots default: `--profile <missing>` would fail the backend.
-    return profile === 'default' || (profile && options.profileExists?.(profile) !== false) ? profile : null
+    // A stored profile whose home is gone boots default, explicitly: `--profile <missing>` would fail the
+    // backend, and `null` (no preference) would let the CLI's own active profile pick a different home
+    // than the one the connection is labelled with.
+    if (profile && profile !== 'default' && options.profileExists?.(profile) === false) {
+      return 'default'
+    }
+
+    return profile
   }
 
   function remember(name: unknown): null | string {
