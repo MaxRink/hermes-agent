@@ -250,6 +250,10 @@ TOOLSET_SESSION_PLATFORMS = {name: spec["platforms"] for name, spec in TOOLSETS.
 # these names, so a plugin, MCP server or custom toolset name never leaves the machine.
 BUILTIN_TOOL_NAMES = frozenset(tool for spec in TOOLSETS.values() for tool in spec["tools"])
 BUILTIN_TOOLSET_NAMES = frozenset(TOOLSETS)
+# What the desktop's agentic onboarding shipped and then lost. Metrics rows saved before the upgrade
+# still name them, so the metrics vocabulary keeps accepting them; the live registry does not.
+RETIRED_TOOL_NAMES = frozenset({"setup_choose", "start_chat"})
+RETIRED_TOOLSET_NAMES = frozenset({"setup", "start_chat"})
 
 
 def _registry():
@@ -471,13 +475,9 @@ def agent_tool_drops(agent: Any) -> frozenset:
     return side_agent_tool_drops(agent) | session_platform_tool_drops(getattr(agent, "platform", None))
 
 
-# Toolsets the desktop's agentic onboarding added and then lost; old configs still list them. Accepted
-# so they drop quietly (they resolve to no tools) instead of warning on every launch.
-_RETIRED_TOOLSETS = frozenset({"setup", "start_chat"})
-
-
 def validate_toolset(name: str) -> bool:
-    return (name in {"all", "*"} or name in TOOLSETS or name in _RETIRED_TOOLSETS
+    # Old configs still list the retired toolsets; they resolve to no tools, so accept them quietly.
+    return (name in {"all", "*"} or name in TOOLSETS or name in RETIRED_TOOLSET_NAMES
             or name in _get_plugin_toolset_names() or name in _get_registry_toolset_aliases())
 
 
