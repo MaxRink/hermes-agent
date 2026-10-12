@@ -121,8 +121,10 @@ def _release(profile: Path, marker: dict) -> None:
         disabled = [name for name in parse_config_string_list((config.get("agent") or {}).get("disabled_toolsets"))
                     if name not in added]
         _set_key(config, "agent", "disabled_toolsets", disabled or None)
-        if ((config.get("tools") or {}).get("tool_search") or {}).get("defer") == _SETUP_DEFERRED_TOOLS:
-            _set_key(config, "tools", "tool_search", None)
+        search = dict((config.get("tools") or {}).get("tool_search") or {})
+        if search.get("defer") == _SETUP_DEFERRED_TOOLS:
+            search.pop("defer")  # only the list setup wrote; the user's other tool_search keys stay
+            _set_key(config, "tools", "tool_search", search or None)
         atomic_config_replace(config_path, config)
     (profile / _MARKER).unlink(missing_ok=True)
     logger.info("released the setup profile %s; its chats, credentials and memories stay", profile.name)
