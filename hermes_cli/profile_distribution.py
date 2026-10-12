@@ -572,6 +572,9 @@ def _copy_dist_payload(staged: Path, target: Path, manifest: DistributionManifes
 
     # Make sure the manifest on disk reflects resolved name + source
     write_manifest(target, manifest)
+    from hermes_cli.onboarding_migrations import SETUP_MARKER, release_setup_copy
+    if any(rel_parts == (SETUP_MARKER,) for _, rel_parts in entries):
+        release_setup_copy(target, target)
 
 
 def _bootstrap_user_dirs(target: Path) -> None:

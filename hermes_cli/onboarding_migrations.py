@@ -17,7 +17,7 @@ from hermes_constants import get_default_hermes_root, get_hermes_home
 
 logger = logging.getLogger(__name__)
 
-_MARKER = ".setup-profile.json"
+SETUP_MARKER = ".setup-profile.json"
 _RELEASED_FLAG = "setup_profile_released"  # root config onboarding.seen.<flag>
 _OLD_GUIDE_SKIPPED_FLAG = "setup_intro"  # written by the agentic build for a returning user
 _ADDED_DISABLED_KEY = "setup_disabled_toolsets"  # marker key: toolsets setup itself disabled
@@ -39,7 +39,7 @@ def release_setup_profiles() -> None:
     from hermes_cli.auth import _file_lock
     from hermes_cli.config import read_user_config_raw
 
-    if (get_hermes_home() / _MARKER).is_file():
+    if (get_hermes_home() / SETUP_MARKER).is_file():
         return
     root = get_default_hermes_root()
     config_path = root / "config.yaml"
@@ -47,7 +47,7 @@ def release_setup_profiles() -> None:
                     "another backend is releasing the setup profile"):
         if is_seen(read_user_config_raw(config_path), _RELEASED_FLAG):
             return
-        marked = {path: _read_marker(path) for path in _iter_named_profile_dirs() if (path / _MARKER).is_file()}
+        marked = {path: _read_marker(path) for path in _iter_named_profile_dirs() if (path / SETUP_MARKER).is_file()}
         if _old_guide_done(marked.values(), config_path):
             _settle_run(config_path)
         # A profile whose identity did not reach the shared store keeps its marker and the latch stays
@@ -65,9 +65,16 @@ def release_setup_profiles() -> None:
         mark_seen(config_path, _RELEASED_FLAG)
 
 
+def release_setup_copy(copy_dir: Path, source_dir: Path) -> None:
+    """A clone, import or distribution install of a setup profile is released as it is made, since the
+    boot release may already have latched (an archive from a canary build imported later)."""
+    if (source_dir / SETUP_MARKER).is_file():
+        _release(copy_dir, _read_marker(source_dir))
+
+
 def _read_marker(path: Path) -> dict:
     from utils import read_json_or_empty
-    return read_json_or_empty(path / _MARKER)
+    return read_json_or_empty(path / SETUP_MARKER)
 
 
 def _old_guide_done(markers, config_path: Path) -> bool:
@@ -133,7 +140,7 @@ def _release(profile: Path, marker: dict) -> None:
             search.pop("defer")  # only the list setup wrote; the user's other tool_search keys stay
             _set_key(config, "tools", "tool_search", search or None)
         atomic_config_replace(config_path, config)
-    (profile / _MARKER).unlink(missing_ok=True)
+    (profile / SETUP_MARKER).unlink(missing_ok=True)
     logger.info("released the setup profile %s; its chats, credentials and memories stay", profile.name)
 
 
