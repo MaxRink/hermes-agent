@@ -209,15 +209,9 @@ export function decideMigration(
   return { profile: best, _migrated: true }
 }
 
-// The setup profile canary/RC builds made. The backend releases it at boot (hermes_cli/onboarding_migrations.py),
-// but only from a backend launched elsewhere, and this pick runs before that backend exists: picking it here
-// would boot into it every launch and it would never be released. Once released it carries no marker.
-const SETUP_PROFILE_MARKER = '.setup-profile.json'
-
 /**
- * List named profile directory names under `profilesRoot`, minus the setup profile, which is never a startup
- * profile. A directory named `default` is accepted if present (unusual) but production default is not a child
- * of this folder — see `withDefaultCandidate`.
+ * List named profile directory names under `profilesRoot`. A directory named `default` is accepted if present
+ * (unusual) but production default is not a child of this folder — see `withDefaultCandidate`.
  */
 export function listProfileDirs(deps: MigrationDeps): string[] {
   let entries: Dirent[]
@@ -230,7 +224,6 @@ export function listProfileDirs(deps: MigrationDeps): string[] {
 
   return entries
     .filter(e => e.isDirectory() && (e.name === 'default' || deps.isValidProfileName(e.name)))
-    .filter(e => !deps.existsSync(`${deps.profilesRoot}/${e.name}/${SETUP_PROFILE_MARKER}`))
     .map(e => e.name)
 }
 
