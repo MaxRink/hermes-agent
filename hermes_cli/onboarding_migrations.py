@@ -50,11 +50,18 @@ def release_setup_profiles() -> None:
         marked = {path: _read_marker(path) for path in _iter_named_profile_dirs() if (path / _MARKER).is_file()}
         if _old_guide_done(marked.values(), config_path):
             _settle_run(config_path)
+        # A profile whose identity did not reach the shared store keeps its marker and the latch stays
+        # open, so the next boot retries instead of leaving the install without that identity.
+        unshared = {path for path in marked if not _share_identity(path)}
         for path, marker in marked.items():
-            _share_identity(path)
-            _release(path, marker)
+            if path not in unshared:
+                _release(path, marker)
         for home in (root, *_iter_named_profile_dirs()):
             _uninstall_retired_skills(home)
+        if unshared:
+            logger.warning("setup profile release deferred: could not share the identity of %s",
+                           ", ".join(sorted(path.name for path in unshared)))
+            return
         mark_seen(config_path, _RELEASED_FLAG)
 
 
@@ -93,18 +100,18 @@ def _write_run(config_path: Path, value: bool) -> None:
         config_mod.atomic_config_write(config_path, config)
 
 
-def _share_identity(profile: Path) -> None:
+def _share_identity(profile: Path) -> bool:
     """A guest or sign-in made inside the setup profile becomes the install's shared Nous identity
-    when the shared store has none (the shared store stays the identity of record otherwise)."""
+    when the shared store has none (the shared store stays the identity of record otherwise).
+    False only when that write failed."""
     from hermes_cli.auth import _load_auth_store, _provider_state_in
     from hermes_cli.auth_nous import _nous_shared_store_lock, _read_shared_nous_state, _write_shared_nous_state
 
     state = _provider_state_in(_load_auth_store(profile / "auth.json"), "nous")
     if not state:
-        return
+        return True
     with _nous_shared_store_lock():
-        if _read_shared_nous_state() is None:
-            _write_shared_nous_state(state)
+        return _read_shared_nous_state() is not None or _write_shared_nous_state(state)
 
 
 def _release(profile: Path, marker: dict) -> None:
