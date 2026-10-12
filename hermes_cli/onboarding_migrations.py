@@ -67,9 +67,11 @@ def release_setup_profiles() -> None:
 
 def release_setup_copy(copy_dir: Path, source_dir: Path) -> None:
     """A clone, import or distribution install of a setup profile is released as it is made, since the
-    boot release may already have latched (an archive from a canary build imported later)."""
+    boot release may already have latched (an archive from a canary build imported later). The copy
+    also loses the retired onboarding skills, which the latched boot cleanup would never reach."""
     if (source_dir / SETUP_MARKER).is_file():
         _release(copy_dir, _read_marker(source_dir))
+    _uninstall_retired_skills(copy_dir)
 
 
 def _read_marker(path: Path) -> dict:
