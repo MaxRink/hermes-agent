@@ -1436,9 +1436,6 @@ def create_profile(
             _clone_all_into(source_dir, staging, canon)
         else:
             _bootstrap_profile_dir(staging, source_dir, sync_imports=sync_imports)
-        if source_dir is not None:
-            from hermes_cli.onboarding_migrations import release_setup_copy
-            release_setup_copy(staging, source_dir)
         if source_dir is not None and not clone_channels:
             from hermes_cli.profile_channels import strip_channel_settings
             stripped = strip_channel_settings(staging, include_state=clone_all, source_dir=source_dir)
@@ -2361,8 +2358,6 @@ def import_profile(archive_path: str, name: Optional[str] = None) -> Path:
                     shutil.rmtree(child)
                 else:
                     child.unlink()
-        from hermes_cli.onboarding_migrations import release_setup_copy
-        release_setup_copy(final_source, final_source)
         shutil.move(str(final_source), str(profile_dir))
     return profile_dir
 

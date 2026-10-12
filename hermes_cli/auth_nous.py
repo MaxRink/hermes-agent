@@ -446,10 +446,10 @@ def _nous_shared_shape(src: dict[str, Any]) -> dict[str, Any]:
            if src.get(k) not in (None, "")}}
 
 
-def _write_shared_nous_state(state: dict[str, Any]) -> bool:
-    """Persist a minimal copy of the Nous OAuth state to the shared store; False when the save failed.
+def _write_shared_nous_state(state: dict[str, Any]) -> None:
+    """Persist a minimal copy of the Nous OAuth state to the shared store.
 
-    Best-effort: failures are logged, not raised; per-profile auth.json stays the source of truth.
+    Best-effort: failures are logged and swallowed; per-profile auth.json stays the source of truth.
     """
     from hermes_cli.auth import _nonempty_str, _save_private_json
     refresh_token = state.get("refresh_token")
@@ -457,7 +457,7 @@ def _write_shared_nous_state(state: dict[str, Any]) -> bool:
     # or a guest's anon_ credential, which is the whole identity and may not have been exchanged yet.
     is_guest = _nonempty_str(state.get("anon_token"))
     if not is_guest and not (_nonempty_str(refresh_token) and _nonempty_str(state.get("access_token"))):
-        return True
+        return
     shared = {
         "_schema": 1, **_nous_shared_shape(state),
         "updated_at": datetime.now(UTC).isoformat()}
@@ -470,8 +470,6 @@ def _write_shared_nous_state(state: dict[str, Any]) -> bool:
             refresh_token_fp=_token_fingerprint(refresh_token))
     except Exception as exc:
         logger.debug("Failed to write shared Nous auth store: %s", exc)
-        return False
-    return True
 
 
 def _read_shared_nous_state() -> Optional[dict[str, Any]]:
