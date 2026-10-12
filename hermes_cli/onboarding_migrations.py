@@ -21,7 +21,8 @@ SETUP_MARKER = ".setup-profile.json"
 _RELEASED_FLAG = "setup_profile_released"  # root config onboarding.seen.<flag>
 _OLD_GUIDE_SKIPPED_FLAG = "setup_intro"  # written by the agentic build for a returning user
 _ADDED_DISABLED_KEY = "setup_disabled_toolsets"  # marker key: toolsets setup itself disabled
-# The exact deferred-tool list setup wrote; a list the user changed since is theirs and stays.
+# The exact cli toolset and deferred-tool lists setup wrote; a list the user changed since is theirs and stays.
+_SETUP_CLI_TOOLSETS = ["setup", "start_chat", "connections", "no_mcp"]
 _SETUP_DEFERRED_TOOLS = [
     "computer_use", "session_search", "image_generate", "todo_list", "process_manage", "cronjob_manage",
     "drive_preview", "desktop_preview", "annotate_preview", "show_tip", "desktop_project",
@@ -125,7 +126,7 @@ def _share_identity(profile: Path) -> bool:
 
 
 def _release(profile: Path, marker: dict) -> None:
-    """Drop the marker and the tool limits setup gave the profile: the cli toolset grant, the toolsets
+    """Drop the marker and the tool limits setup gave the profile: its cli toolset list, the toolsets
     setup itself disabled (the user's own disabled toolsets stay) and its deferred-tool list."""
     from agent.skill_utils import parse_config_string_list
     from hermes_cli.config import atomic_config_replace, read_user_config_raw
@@ -133,7 +134,8 @@ def _release(profile: Path, marker: dict) -> None:
     config_path = profile / "config.yaml"
     if config_path.is_file():
         config = read_user_config_raw(config_path)
-        _set_key(config, "platform_toolsets", "cli", None)
+        if (config.get("platform_toolsets") or {}).get("cli") == _SETUP_CLI_TOOLSETS:
+            _set_key(config, "platform_toolsets", "cli", None)
         added = set(marker.get(_ADDED_DISABLED_KEY) or [])
         disabled = [name for name in parse_config_string_list((config.get("agent") or {}).get("disabled_toolsets"))
                     if name not in added]

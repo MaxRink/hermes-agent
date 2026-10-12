@@ -83,3 +83,15 @@ def test_a_finished_guide_releases_its_profile_once_and_keeps_its_chats(root):
     (setup / MARKER).write_text("{}")
     onboarding_migrations.release_setup_profiles()
     assert (setup / MARKER).exists()
+
+
+@pytest.mark.parametrize("cli", [["safe"], []])
+def test_a_cli_toolset_list_the_user_changed_outlives_the_release(root, cli):
+    setup = _setup_profile("hermes-setup", {"intro": "seen"})
+    config = read_user_config_raw(setup / "config.yaml")
+    config["platform_toolsets"] = {"cli": cli}
+    atomic_config_write(setup / "config.yaml", config)
+
+    onboarding_migrations.release_setup_profiles()
+
+    assert read_user_config_raw(setup / "config.yaml")["platform_toolsets"] == {"cli": cli}
