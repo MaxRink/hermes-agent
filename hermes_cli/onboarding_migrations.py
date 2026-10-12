@@ -27,7 +27,8 @@ _SETUP_DEFERRED_TOOLS = [
     "drive_preview", "desktop_preview", "annotate_preview", "show_tip", "desktop_project",
     "close_terminal", "read_terminal", "read_window_below", "focus_pane", "react_to_message",
 ]
-_RETIRED_SKILLS = ("initiate-setup", "first-task")
+# Name -> the hub identifier its optional-skills copy installed under; a same-named skill from elsewhere stays.
+_RETIRED_SKILLS = {name: f"official/productivity/{name}" for name in ("initiate-setup", "first-task")}
 _lock_holder = threading.local()
 
 
@@ -164,7 +165,9 @@ def _uninstall_retired_skills(home: Path) -> None:
     from utils import read_json_or_empty
 
     installed = read_json_or_empty(home / "skills" / ".hub" / "lock.json").get("installed") or {}
-    retired = [name for name in _RETIRED_SKILLS if name in installed]
+    retired = [name for name, identifier in _RETIRED_SKILLS.items()
+               if (installed.get(name) or {}).get("source") == "official"
+               and installed[name].get("identifier") == identifier]
     if not retired:
         return
     from hermes_constants import reset_hermes_home_override, set_hermes_home_override
