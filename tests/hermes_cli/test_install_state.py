@@ -51,7 +51,8 @@ def test_a_machine_with_only_install_time_files_is_fresh(machine):
     # What installers and a first boot write: template config, example .env keys, an empty state.db,
     # pool rows Hermes seeded from the shell, the PM boot record.
     (other / "config.yaml").write_text("_config_version: 50\nmodel:\n  default: x\n  provider: auto\n", encoding="utf-8")
-    (other / ".env").write_text("TERMINAL_ENV=local\n# OPENROUTER_API_KEY=\n", encoding="utf-8")
+    (other / ".env").write_text('TERMINAL_ENV=local\n# OPENROUTER_API_KEY=\nOPENROUTER_API_KEY="" # optional\n',
+                                encoding="utf-8")
     (other / "auth.json").write_text(json.dumps({"credential_pool": {"openrouter": [{"source": "env:OPENROUTER_API_KEY"}]}}), encoding="utf-8")
     sqlite3.connect(other / "state.db").execute("CREATE TABLE messages (id INTEGER)").connection.close()
     (other / "installs" / "k" / "bootstrap").mkdir(parents=True)
@@ -95,6 +96,27 @@ def test_a_root_in_a_protected_folder_is_existing_without_being_opened(machine, 
     monkeypatch.setattr(install_state, "machine_places", lambda: places)
 
     assert install_state.probe().findings[0].evidence is Evidence.UNREADABLE
+
+
+def test_a_launcher_in_a_protected_folder_names_its_folder_without_being_opened(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    import hermes_platform.resolver
+    from hermes_cli import _launchers
+    from hermes_platform.resolver import known_dirs
+
+    protected = tmp_path / "Documents"
+    launcher = protected / "hermes-src" / "hermes"
+    monkeypatch.setattr(known_dirs, "mac_privacy_protected_dirs", lambda: (str(protected),))
+    monkeypatch.setattr(hermes_platform.resolver, "locate_command",
+                        lambda _name: SimpleNamespace(command=(str(launcher),)))
+
+    def opened(_target):
+        pytest.fail("the launcher inside a protected folder was opened")
+
+    monkeypatch.setattr(_launchers, "_launcher_python", opened)
+
+    assert list(install_state._launcher_root()) == [launcher.parent]
 
 
 def test_claiming_marks_the_machine_and_the_next_probe_sees_it(machine):

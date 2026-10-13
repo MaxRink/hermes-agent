@@ -77,7 +77,7 @@ class Places:
         return cls(
             markers=tuple(_expand_all(known_dirs.machine_marker_files())),
             sources=(_active_root, _home_globs, _shared_auth_dir, _registry_home, _service_homes, _launcher_root),
-            protected=tuple(_expand_all(known_dirs.mac_privacy_protected_dirs())),
+            protected=_protected_dirs(),
         )
 
 
@@ -108,11 +108,11 @@ def mark_machine_used() -> None:
     """Record that this machine has a used install, or just claimed the trial. Atomic, idempotent."""
     places = machine_places()
     if places.markers:
+        from utils import atomic_json_write
+
         marker = places.markers[0]
         marker.parent.mkdir(parents=True, exist_ok=True)
-        tmp = marker.with_name(marker.name + ".tmp")
-        tmp.write_text("{}\n", encoding="utf-8")
-        tmp.replace(marker)
+        atomic_json_write(marker, {})  # unique temp name: two backends may mark at once
     probe.cache_clear()
 
 
@@ -139,7 +139,17 @@ def candidate_roots(places: Places) -> Iterator[Path]:
 
 
 def _is_protected(path: Path, places: Places) -> bool:
-    return any(path == p or p in path.parents for p in places.protected)
+    return _inside(path, places.protected)
+
+
+def _inside(path: Path, dirs: Iterable[Path]) -> bool:
+    return any(path == d or d in path.parents for d in dirs)
+
+
+def _protected_dirs() -> tuple[Path, ...]:
+    from hermes_platform.resolver import known_dirs
+
+    return tuple(_expand_all(known_dirs.mac_privacy_protected_dirs()))
 
 
 def _expand_all(patterns: Iterable[str]) -> Iterator[Path]:
@@ -203,7 +213,12 @@ def _launcher_root() -> Iterable[Path]:
     found = locate_command("hermes").command
     if not found:
         return ()
-    launcher = Path(found[0]).resolve()
+    protected = _protected_dirs()
+    launcher = Path(os.path.abspath(found[0]))
+    if not _inside(launcher, protected):
+        launcher = launcher.resolve()
+    if _inside(launcher, protected):
+        return (launcher.parent,)  # reading it would raise a macOS permission prompt; reported as unreadable
     python = _launcher_python(launcher)
     owners = [p.parent for p in (python.parents if python else ()) if p.name == "tools"]
     if not owners and launcher.parent.name == "bin" and launcher.parent.parent.name == ".hermes":
@@ -274,12 +289,15 @@ _USER_ENV_CATEGORIES = frozenset({"provider", "tool", "messaging", "skill"})
 def _provider_key(home: _Root) -> bool:
     from hermes_cli.config_defaults import OPTIONAL_ENV_VARS
 
+    from agent.secret_scope import load_env_file
+
     path = home.path / ".env"
     if not path.is_file():
         return False
+    _read_text(path)  # too large or unreadable raises, so doubt counts as used; the tokenizer swallows both
     return any(value and key not in _IGNORED_ENV_KEYS
                and (OPTIONAL_ENV_VARS.get(key) or {}).get("category") in _USER_ENV_CATEGORIES
-               for key, value in _parse_dotenv(_read_text(path)).items())
+               for key, value in load_env_file(path).items())
 
 
 def _provider_login(home: _Root) -> bool:
@@ -344,14 +362,3 @@ def _parse_yaml(text: str) -> Any:
         return hermes_yaml.safe_load(text)
     except hermes_yaml.YAMLError as exc:
         raise ValueError(str(exc)) from exc
-
-
-def _parse_dotenv(text: str) -> dict[str, str]:
-    pairs: dict[str, str] = {}
-    for line in text.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.removeprefix("export ").split("=", 1)
-        pairs[key.strip()] = value.strip().strip("'\"")
-    return pairs
