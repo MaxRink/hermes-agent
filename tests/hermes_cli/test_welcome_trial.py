@@ -131,6 +131,24 @@ def test_a_reaped_claimant_replaced_by_a_connector_guest_is_not_grandfathered(po
     assert not anon_auth.free_inference_active()
 
 
+def test_a_connector_guest_adopted_from_the_shared_store_is_not_grandfathered(portal, monkeypatch):
+    from hermes_cli.auth import _load_auth_store, _save_auth_store
+    from hermes_constants import get_hermes_home
+
+    as_local_desktop_backend(monkeypatch)
+    anon_auth.ensure_portal_identity(explicit=True)  # connector mint: welcome_claim False, mirrored
+    store = _load_auth_store()
+    store["providers"].pop("nous")  # a profile whose own identity differs adopts the shared one
+    _save_auth_store(store)
+    _chat(get_hermes_home() / "state.db", anon_auth.GUEST_MODEL)
+
+    adopted = anon_auth.ensure_portal_identity(explicit=True)
+
+    assert adopted[anon_auth.WELCOME_CLAIM_FLAG] is False
+    assert welcome_trial.grandfather_existing_guest() is False
+    assert portal.creates() == 1
+
+
 LOSSES = {
     "reaped": (lambda: anon_auth.clear_dead_guest("anon_credential_dead"), 1),
     "replaced_by_connector": (lambda: (anon_auth.clear_dead_guest("anon_credential_dead"),
@@ -161,3 +179,18 @@ def test_a_lost_trial_is_never_claimed_again_after_a_relaunch(portal, monkeypatc
         resolve_provider("auto")
     record = free_tier_bootstrap.current_record()
     assert (record.provider_configured, record.free_tier_account) == (False, False)
+
+
+
+def test_a_leftover_guest_pool_row_is_not_reported_as_a_nous_login(portal, monkeypatch):
+    from hermes_cli.auth import _load_auth_store, _save_auth_store, resolve_nous_runtime_credentials
+    from hermes_cli.auth_nous import get_nous_auth_status_local
+
+    claimed_trial(monkeypatch)
+    resolve_nous_runtime_credentials()  # the trial ran, so the pool holds the guest's exchanged token
+    store = _load_auth_store()
+    store["providers"].pop("nous")  # the claim is lost; only the pool row is left
+    _save_auth_store(store)
+
+    # Provider setup would otherwise tag Nous Portal "Connected" for a credential that runs nothing.
+    assert get_nous_auth_status_local()["logged_in"] is False

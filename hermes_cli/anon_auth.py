@@ -37,8 +37,8 @@ from typing import Any, Callable, Dict, Optional
 
 from agent.retry_utils import parse_retry_after_seconds
 from hermes_cli.auth_constants import (
-    AuthError, DEFAULT_NOUS_PORTAL_URL, DEFAULT_NOUS_WELCOME_URL, NOUS_INFERENCE_INVOKE_SCOPE, _decode_jwt_claims,
-    httpx)
+    AuthError, DEFAULT_NOUS_PORTAL_URL, DEFAULT_NOUS_WELCOME_URL, NOUS_INFERENCE_INVOKE_SCOPE, WELCOME_CLAIM_FLAG,
+    _decode_jwt_claims, httpx)
 
 logger = logging.getLogger("hermes_cli.auth")
 
@@ -50,9 +50,6 @@ ANON_SECRET_HEADER = "x-anonymous-api-secret"
 # The shared secret gates the anonymous surface during its integration phase. It is a deployment
 # secret (Sid's), read from the environment only.
 ANON_SECRET_ENV = "HERMES_ANON_API_SECRET"
-# Set on a guest's ``providers.nous`` state when the desktop's first install claims the welcome trial
-# (``hermes_cli.welcome_trial``). Only a stamped guest carries inference; connector mints never set it.
-WELCOME_CLAIM_FLAG = "welcome_claim"
 # Preview cohort for the free tier's connector set, sent once on account creation so the account
 # service can record it on the account. "1" / "true" send true and "0" / "false" send false; anything
 # else (unset included) omits the field and the service applies its default. Self-reported and
