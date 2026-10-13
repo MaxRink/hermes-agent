@@ -188,8 +188,7 @@ export function snapshotChatLayout(): PreviewUndo {
   }
 }
 
-/** The setup chat is guided only while the intro runs; in `ended` or `off` it is a normal chat. The
- *  thread ids outlive the intro so a later `start_chat` from that chat is still recognized. */
+/** The setup chat is guided only while the intro runs; in `ended` or `off` it is a normal chat. */
 export function useOnboardingChatActive(): boolean {
   const solo = useStore($chatOnboardingSolo)
   const intro = useStore($introView) === 'intro'
