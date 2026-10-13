@@ -11,6 +11,7 @@ from tui_gateway import server
 from agent.onboarding import PROFILE_BUILD_FLAG
 from hermes_cli import profiles
 from hermes_cli.config import read_user_config_raw
+from tests.hermes_cli.anon_portal import as_local_desktop_backend
 
 
 @pytest.fixture
@@ -21,7 +22,6 @@ def launched_under_work(tmp_path, monkeypatch) -> tuple[Path, Path]:
     monkeypatch.setenv("HERMES_HOME", str(root))
     work = profiles.create_profile("work", no_alias=True)
     monkeypatch.setenv("HERMES_HOME", str(work))
-    monkeypatch.setenv("HERMES_GUEST_ONBOARDING", "1")
     return root, work
 
 
@@ -34,17 +34,21 @@ def _onboarding(home: Path) -> dict:
 
 
 def test_state_answers_run_and_eligible(launched_under_work, monkeypatch):
-    # The user's own "work" profile is install history, so an unset flag is not due.
-    assert _call("onboarding.state")["result"] == {"run": False, "eligible": True, "session_id": None, "run_id": None}
+    # The user's own "work" profile is install history, so an unset flag is not due, and on the
+    # desktop's local backend nothing carries a first chat: the trial is never claimed on a used machine.
+    as_local_desktop_backend(monkeypatch)
+    for var in ("OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "NOUS_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
+    assert _call("onboarding.state")["result"] == {"run": False, "eligible": False, "session_id": None, "run_id": None}
 
-    monkeypatch.delenv("HERMES_GUEST_ONBOARDING")
-    assert _call("onboarding.state")["result"]["eligible"] is False
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+    assert _call("onboarding.state")["result"]["eligible"] is True
 
 
 def test_set_run_writes_the_root_config(launched_under_work):
     root, work = launched_under_work
 
-    assert _call("onboarding.set_run", {"run": True})["result"] == {"run": True, "eligible": True, "session_id": None, "run_id": None}
+    assert _call("onboarding.set_run", {"run": True})["result"] == {"run": True, "eligible": False, "session_id": None, "run_id": None}
     assert _onboarding(root)["run"] is True
     assert "run" not in _onboarding(work)
     assert _call("onboarding.state")["result"]["run"] is True

@@ -222,7 +222,6 @@ def test_read_nous_provider_state_falls_back_to_global_root_for_share_auth_profi
         "providers": {"nous": {"auth_method": "anonymous", "access_token": "tok"}},
     }))
     monkeypatch.setenv("HERMES_HOME", str(profile))
-    monkeypatch.setenv("HERMES_GUEST_ONBOARDING", "1")
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
 
     import hermes_constants

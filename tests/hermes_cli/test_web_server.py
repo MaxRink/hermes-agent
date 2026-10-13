@@ -1488,7 +1488,7 @@ CONFIG_SCHEMA = ProviderConfigSchema(
 
     def test_model_set_flips_a_stale_setup_record(self, monkeypatch):
         """POST /api/model/set landed a provider on disk; the serve process's boot record
-        (``provider_configured: false`` since a failed boot-time mint) must follow at once, with
+        (``provider_configured: false``: nothing carried inference at boot) must follow at once, with
         the ``setup.ready`` broadcast, or the web chat stays gated on "need setup" until a restart
         (setup.status answers from the record)."""
         from hermes_cli import free_tier_bootstrap as fb
