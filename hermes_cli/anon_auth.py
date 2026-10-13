@@ -213,7 +213,7 @@ def free_inference_active(state: Any = None) -> bool:
     """The welcome trial carries inference here: a guest that claimed it (or was grandfathered),
     guests still allowed, and this is the desktop's local backend. *state* defaults to the profile's."""
     state = current_nous_state() if state is None else state
-    return (is_guest_state(state) and bool(state.get(WELCOME_CLAIM_FLAG)) and guest_allowed()
+    return (is_guest_state(state) and state.get(WELCOME_CLAIM_FLAG) is True and guest_allowed()
             and on_local_desktop_backend())
 
 
@@ -488,10 +488,12 @@ def _shared_identity_key(state: Any) -> Optional[str]:
     return state.get("anon_token") if is_guest_state(state) else state.get("refresh_token")
 
 
-def _mint_locked(client: httpx.Client, portal: str, auth_store: dict[str, Any]) -> dict[str, Any]:
+def _mint_locked(client: httpx.Client, portal: str, auth_store: dict[str, Any], *,
+                 welcome_claim: bool) -> dict[str, Any]:
     """Mint under the caller's locks. The identity is persisted as soon as ``create`` succeeds, BEFORE
     the exchange: a 429 or timeout on the exchange must not lose a credential NAS still honours (the
-    next attempt exchanges the stored one instead of minting again)."""
+    next attempt exchanges the stored one instead of minting again). *welcome_claim* is written in
+    that same save, so a claimed guest is never left unstamped."""
     from hermes_cli.auth import _store_provider_state, _save_auth_store
     from hermes_cli.auth_nous import _write_shared_nous_state
     minted = mint_guest(client, portal)
@@ -501,6 +503,8 @@ def _mint_locked(client: httpx.Client, portal: str, auth_store: dict[str, Any]) 
         "portal_base_url": portal.rstrip("/"),
         "user_id": minted.get("user_id"), "org_id": minted.get("org_id"),
         "idle_ttl_days": minted.get("idle_ttl_days"),
+        # Always present: an absent key marks a guest minted before the claim existed (grandfathering).
+        WELCOME_CLAIM_FLAG: welcome_claim,
     }
     _store_provider_state(auth_store, "nous", state, set_active=False)
     _save_auth_store(auth_store)
@@ -607,7 +611,8 @@ def _note_mint_failure(err: AuthError) -> MintFailure:
     return failure
 
 
-def _reconcile_and_provision(*, timeout_seconds: float, force: bool = False) -> Optional[dict[str, Any]]:
+def _reconcile_and_provision(*, timeout_seconds: float, force: bool = False,
+                             welcome_claim: bool = False) -> Optional[dict[str, Any]]:
     """The lifecycle body, run under profile lock THEN shared lock (the documented order).
 
     1. The shared store is the identity of record for this Hermes root. If it holds an identity
@@ -644,7 +649,7 @@ def _reconcile_and_provision(*, timeout_seconds: float, force: bool = False) -> 
             verify = _resolve_verify(insecure=None, ca_bundle=None, auth_state=None)
             try:
                 with _nous_http_client(timeout_seconds, verify) as client:
-                    return _mint_locked(client, portal, auth_store)
+                    return _mint_locked(client, portal, auth_store, welcome_claim=welcome_claim)
             except Exception as exc:
                 # Noted before the locks are released, so a caller queued on them sees the cooldown.
                 err = classify_mint_exception(exc)
@@ -656,6 +661,7 @@ def _reconcile_and_provision(*, timeout_seconds: float, force: bool = False) -> 
 
 def ensure_portal_identity(
     *, explicit: bool, timeout_seconds: float = GUEST_MINT_TIMEOUT_SECONDS, force: bool = False,
+    welcome_claim: bool = False,
 ) -> Optional[dict[str, Any]]:
     """Make sure this profile has a Nous identity (guest or account); mint a guest only if the shared
     store has none. Returns the ``providers.nous`` state, or None (disabled / failed once already).
@@ -663,8 +669,9 @@ def ensure_portal_identity(
     ``explicit`` is required and must be True: the only callers are the first hosted connector action
     (``tools.connectors.gateway.config.ensure_guest_identity``), the connectors dead-credential
     replacement (``managed_tool_gateway._replace_dead_guest_token``) and the desktop's welcome-trial
-    claim (``welcome_trial.claim_desktop_free_tier``), which stamps the guest it gets back. An
-    unstamped guest serves connectors only.
+    claim (``welcome_trial.claim_desktop_free_tier``), which passes ``welcome_claim=True`` so a guest
+    it mints carries the stamp from its first write. Every other guest is minted with
+    ``welcome_claim: False`` and serves connectors only.
     Nothing creates an identity as a side effect of reading status, resolving a provider or fetching a
     connector bearer (NS-845 Q1.2).
 
@@ -685,7 +692,8 @@ def ensure_portal_identity(
     if failure and not force and not current_nous_state() and time.monotonic() < failure.not_before:
         return None  # in cooldown (or terminal) for this profile; do not hammer the portal
     try:
-        state = _reconcile_and_provision(timeout_seconds=timeout_seconds, force=force)
+        state = _reconcile_and_provision(timeout_seconds=timeout_seconds, force=force,
+                                         welcome_claim=welcome_claim)
     except Exception as exc:
         err = classify_mint_exception(exc)
         noted = getattr(err, "mint_failure", None) or _note_mint_failure(err)

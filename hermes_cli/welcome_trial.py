@@ -2,9 +2,10 @@
 
 Only the backend the desktop spawned on this machine can claim it, only when this machine has never
 used Hermes (``install_state``), and only with no provider and no Nous identity yet. The claim mints a
-guest, stamps ``WELCOME_CLAIM_FLAG`` on it and marks the machine, so the trial is never claimed twice
-here. A claim that is lost later (the guest is reaped, ``auth.json`` is deleted, the user signs in) is
-never made again: that user lands on provider setup and sign-in like anyone else.
+guest stamped with ``WELCOME_CLAIM_FLAG`` in the mint's own write and marks the machine, so the trial
+is never claimed twice here. A claim that is lost later (the guest is reaped, ``auth.json`` is
+deleted, the user signs in) is never made again: that user lands on provider setup and sign-in like
+anyone else.
 
 Guests that ran on the free model before the claim existed keep it (:func:`grandfather_existing_guest`).
 Enforcement is client-side; the account service's own entitlement check follows separately.
@@ -80,44 +81,41 @@ def claim_desktop_free_tier(*, assume_fresh: bool = False, force: bool = False) 
     if reason := claim_blocker(assume_fresh=assume_fresh):
         logger.debug("welcome trial not claimed: %s", reason)
         return None
-    state = anon_auth.ensure_portal_identity(explicit=True, force=force)
+    state = anon_auth.ensure_portal_identity(explicit=True, force=force, welcome_claim=True)
     if state is None:  # still inside the cooldown of the last failure
         failure = anon_auth.last_mint_failure() or {}
         raise anon_auth._anon_err(str(failure.get("error") or anon_auth.ANON_FAILURE_COPY[anon_auth.ANON_SERVER_ERROR]),
                                   str(failure.get("error_code") or anon_auth.ANON_SERVER_ERROR),
                                   retry_after=failure.get("retry_after"))
-    claimed = _record_claim()
+    from hermes_cli.install_state import mark_machine_used
+
+    mark_machine_used()
     logger.info("Nous free tier: welcome trial claimed on this machine")
-    return claimed
+    return state
 
 
 def grandfather_existing_guest() -> bool:
     """A guest from before the claim existed keeps the free model when this home already chatted on
-    it. Connector-only guests never qualify. Records the claim once; True when it did."""
+    it. Only a guest with no ``welcome_claim`` key qualifies: every guest minted since carries the
+    key, so a connector guest (``False``) never does. Records the claim once; True when it did."""
     if not anon_auth.on_local_desktop_backend():
         return False
     state = anon_auth.current_nous_state()
-    if not anon_auth.is_guest_state(state) or state.get(anon_auth.WELCOME_CLAIM_FLAG):
+    if not anon_auth.is_guest_state(state) or anon_auth.WELCOME_CLAIM_FLAG in state:
         return False
     from hermes_constants import get_default_hermes_root, get_hermes_home
 
     homes = dict.fromkeys((get_hermes_home(), get_default_hermes_root()))
     if not any(_chatted_on_welcome(home / "state.db") for home in homes):
         return False
-    _record_claim()
-    logger.info("Nous free tier: existing free-model guest kept its trial")
-    return True
-
-
-def _record_claim() -> Optional[dict[str, Any]]:
     from hermes_cli.auth_nous import _write_shared_nous_state
     from hermes_cli.install_state import mark_machine_used
 
-    state = anon_auth.set_guest_flag(anon_auth.WELCOME_CLAIM_FLAG)
-    if state is not None:
-        _write_shared_nous_state(state)
+    if (stamped := anon_auth.set_guest_flag(anon_auth.WELCOME_CLAIM_FLAG)) is not None:
+        _write_shared_nous_state(stamped)
     mark_machine_used()
-    return state
+    logger.info("Nous free tier: existing free-model guest kept its trial")
+    return True
 
 
 def _chatted_on_welcome(db: Path) -> bool:
