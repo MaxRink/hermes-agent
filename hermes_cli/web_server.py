@@ -186,7 +186,7 @@ def _probe_install_before_state_db() -> None:
         from hermes_cli.install_state import probe
 
         probe()
-    except Exception:  # onboarding.state probes again on demand
+    except (OSError, ValueError):  # what the probe's own guards leave; onboarding.state probes again
         _log.warning("first-install check at boot failed", exc_info=True)
 
 

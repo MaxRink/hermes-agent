@@ -104,6 +104,20 @@ def _active_run() -> dict:
         return {"session_id": session_id, "run_id": (load(db, session_id) or {}).get("run_id") if session_id else None}
 
 
+def _claim_after_record(db, stored: str, scope: dict, *, assume_fresh: bool):
+    """Claim the welcome trial for a run whose record (and ``onboarding.run: true``) is already on disk,
+    so a crash after the claim makes this machine read as used still opens onboarding next launch. A
+    refused claim deletes the run it was for and re-raises (error 5079): no guest and no chat."""
+    from hermes_cli.auth_constants import AuthError
+    from hermes_cli.welcome_trial import claim_desktop_free_tier
+    try:
+        with _session_profile_runtime_scope(scope):
+            return claim_desktop_free_tier(assume_fresh=assume_fresh)
+    except AuthError:
+        _discard_unfinished_runs(db, [stored])
+        raise
+
+
 @method("onboarding.start")
 def _(rid, params: dict) -> dict:
     from agent.onboarding_facts import read_facts
@@ -112,7 +126,6 @@ def _(rid, params: dict) -> dict:
     from agent.onboarding_text import CHAT_TITLE, opening_prompt
     from hermes_cli.auth_constants import AuthError
     from hermes_cli import free_tier_bootstrap
-    from hermes_cli.welcome_trial import claim_desktop_free_tier
     # The app's once-per-launch start: closing the app mid-run does not count, so that run's chat goes
     # and the run starts over. A second window or a reconnect sends no flag and gets the run back.
     fresh_launch = bool(params.get("fresh_launch"))
@@ -135,16 +148,8 @@ def _(rid, params: dict) -> dict:
                     stored = db.create_session(new_session_id(), "desktop")
                     # The record exists before the agent is built, so the build folds the onboarding toolset in.
                     start(db, stored, facts)
-                    if not params.get("rerun"):
-                        # After the record: onboarding.run is on disk before the claim makes this machine
-                        # read as used, so a crash in between still opens onboarding on the next launch.
-                        # A rerun never claims: it runs on the configured model.
-                        try:
-                            with _session_profile_runtime_scope(scope):
-                                claimed = claim_desktop_free_tier(assume_fresh=bool(params.get("assume_fresh")))
-                        except AuthError:
-                            _discard_unfinished_runs(db, [stored])  # a refused claim leaves no chat behind
-                            raise
+                    if not params.get("rerun"):  # a rerun never claims: it runs on the configured model
+                        claimed = _claim_after_record(db, stored, scope, assume_fresh=bool(params.get("assume_fresh")))
                 else:
                     facts = Facts.from_stored(load(db, stored)["facts"])
                 run_id = load(db, stored).get("run_id") or ""
