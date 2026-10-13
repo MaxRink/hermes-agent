@@ -1,6 +1,6 @@
 """``onboarding.state`` / ``onboarding.start`` and the desktop's welcome trial: a new run on a first
-install claims it once its run record exists, a rerun never does, a failed claim leaves no guest and no
-chat, and only the desktop's local backend opens onboarding by itself."""
+install claims it with the install already marked due, a rerun never does, a failed claim leaves no guest
+and no chat and the next launch still due, and only the desktop's local backend opens onboarding by itself."""
 
 from __future__ import annotations
 
