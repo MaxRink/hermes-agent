@@ -37,3 +37,23 @@ def test_a_write_during_the_boot_computation_is_not_lost():
     finish(compute)
 
     assert onboarding_due.read(lambda: {"run": False, "eligible": True}) == {"run": False, "eligible": True}
+
+
+@pytest.mark.parametrize("path", ["boot", "read"])
+def test_a_key_saved_during_the_computation_is_not_hidden_by_the_cache(path):
+    env = {"key": False}
+
+    def compute():
+        answer = {"run": True, "eligible": env["key"]}  # the provider check has read the files
+        env["key"] = True                               # then another process saves a key
+        return answer
+
+    def stamp():
+        return env["key"]
+
+    if path == "boot":
+        onboarding_due.begin_boot(stamp)(compute)
+    else:
+        onboarding_due.read(compute, stamp=stamp)
+
+    assert onboarding_due.read(lambda: {"run": True, "eligible": env["key"]}, stamp=stamp)["eligible"] is True
