@@ -101,6 +101,17 @@ describe('setup_beat card', () => {
     expect($setupBeatRequests.get()['rt-1']?.requestId).toBe('srq-4')
   })
 
+  it('answers in the shared per-beat contract, never with a label alone', () => {
+    const respond = parkCard('srq-5', true, 'layout')
+
+    expect(answerSetupBeat('rt-1', { layout: 'sidebar-right' })).toBe(true)
+    expect(respond).toHaveBeenCalledWith({ answer: { layout: 'sidebar-right' } })
+
+    parkCard('srq-6')
+    // @ts-expect-error every answer carries its beat's pick; the label is only what the card showed
+    answerSetupBeat('rt-1', { label: 'Elite' })
+  })
+
   it('collapses every way a card can close to a receipt, and draws nothing for a card-less call', () => {
     expect(setupBeatOutcome({ answer: { name: 'Sid' }, beat: 'name' })).toMatchObject({ kind: 'answer' })
     expect(setupBeatOutcome({ beat: 'theme', said: 'make it violet' })).toMatchObject({ kind: 'said' })

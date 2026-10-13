@@ -10,7 +10,7 @@ import { useContributions } from '@/contrib/react/use-contributions'
 import { useI18n } from '@/i18n'
 import { connectorTitle } from '@/lib/connector-tools'
 import { cn } from '@/lib/utils'
-import type { SetupBeatAnswer, SetupBeatToolResult } from '@/store/setup-beat'
+import type { SetupBeatAnswerFields, SetupBeatToolResult } from '@/store/setup-beat'
 import { accentName } from '@/themes/accents'
 
 export const SETUP_BEAT_SHELL_CLASS = cn(
@@ -20,7 +20,7 @@ export const SETUP_BEAT_SHELL_CLASS = cn(
 
 /** What a settled card shows: the beat's pick, or how the card closed without one. */
 export type SetupBeatOutcome =
-  | { answer: SetupBeatAnswer; beat: SetupBeat; kind: 'answer' }
+  | { answer: SetupBeatAnswerFields; beat: SetupBeat; kind: 'answer' }
   | { beat: SetupBeat; kind: 'said'; said: string }
   | { beat: SetupBeat | null; kind: 'refused' | 'skipped_all' | 'timed_out' }
 
@@ -59,7 +59,7 @@ interface AnswerNames {
   layout: (id: string) => string
   none: string
   themeAccent: string
-  tour: (answer: SetupBeatAnswer) => string
+  tour: (answer: SetupBeatAnswerFields) => string
 }
 
 /** The tour card's label for an option id, in the app's language. */
@@ -69,7 +69,7 @@ export function useTourLabel(): (id: string) => string | undefined {
   return id => Object.entries(t.firstRun.tours).find(([key]) => key === id)?.[1]
 }
 
-function answerText(beat: SetupBeat, answer: SetupBeatAnswer, names: AnswerNames): string {
+function answerText(beat: SetupBeat, answer: SetupBeatAnswerFields, names: AnswerNames): string {
   switch (beat) {
     case 'theme':
       return answer.accent ? accentName(answer.accent) : names.themeAccent

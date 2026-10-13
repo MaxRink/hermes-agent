@@ -11,7 +11,17 @@
  */
 
 import type { ToolCallMessagePart } from '@assistant-ui/react'
-import type { SetupBeat } from '@hermes/shared'
+import type {
+  SetupBeat,
+  SetupBeatResult,
+  SetupBuildAnswer,
+  SetupConnectorsAnswer,
+  SetupLayoutAnswer,
+  SetupNameAnswer,
+  SetupPluginsAnswer,
+  SetupThemeAnswer,
+  SetupTourAnswer
+} from '@hermes/shared'
 import { atom } from 'nanostores'
 
 import { recordOf } from '@/lib/connector-tools'
@@ -32,22 +42,24 @@ export interface SetupBeatCard {
   suggested?: string | string[]
 }
 
-/** The picks a card answers with, per beat (`SetupBeatResult.answer`). Tour and build add the option's label. */
-export interface SetupBeatAnswer {
-  accent?: null | string
-  build?: string
-  connected?: string[]
-  installed?: string[]
-  label?: string
-  layout?: string
-  name?: string
-  newly_connected?: string[]
-  tour?: string
-}
+/** The picks a card answers with: one of the shared per-beat answers (`SetupBeatResult.answer`). */
+export type SetupBeatAnswer = NonNullable<SetupBeatResult['answer']>
+
+/** An answer the receipt reads by field, whichever beat it came from. Built from the shared answers, so a
+ *  field the contract adds or renames reaches the receipt. */
+export type SetupBeatAnswerFields = Partial<
+  SetupBuildAnswer &
+    SetupConnectorsAnswer &
+    SetupLayoutAnswer &
+    SetupNameAnswer &
+    SetupPluginsAnswer &
+    SetupThemeAnswer &
+    SetupTourAnswer
+>
 
 /** What `tools/setup_beat_tool.py` returns to the model, as the transcript's tool row carries it. */
 export interface SetupBeatToolResult {
-  answer?: SetupBeatAnswer
+  answer?: SetupBeatAnswerFields
   beat?: SetupBeat
   completed?: boolean
   error?: string
