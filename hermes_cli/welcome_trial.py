@@ -90,20 +90,24 @@ def claim_desktop_free_tier(*, assume_fresh: bool = False, force: bool = False) 
     """Claim the trial when nothing blocks it: mint the guest, stamp the claim, mark the machine.
     Returns the claimed state, or None when the trial is not available here. A failed mint raises
     the coded ``AuthError`` from :func:`anon_auth.ensure_portal_identity` (memoised with its cooldown;
-    *force* is the user's own retry)."""
-    settle_interrupted_claim()
-    if reason := claim_blocker(assume_fresh=assume_fresh):
-        logger.debug("welcome trial not claimed: %s", reason)
-        return None
-    state = anon_auth.ensure_portal_identity(explicit=True, force=force, welcome_claim=True)
-    if state is None:  # still inside the cooldown of the last failure
-        failure = anon_auth.last_mint_failure() or {}
-        raise anon_auth._anon_err(str(failure.get("error") or anon_auth.ANON_FAILURE_COPY[anon_auth.ANON_SERVER_ERROR]),
-                                  str(failure.get("error_code") or anon_auth.ANON_SERVER_ERROR),
-                                  retry_after=failure.get("retry_after"))
-    from hermes_cli.install_state import mark_machine_used
+    *force* is the user's own retry). Held under the OS user's claim lock from the checks to the
+    marker write, so two installs starting together claim once."""
+    from hermes_cli import install_state
 
-    mark_machine_used()
+    with install_state.claim_lock():
+        install_state.probe.cache_clear()  # another install may have claimed since this process looked
+        settle_interrupted_claim()
+        if reason := claim_blocker(assume_fresh=assume_fresh):
+            logger.debug("welcome trial not claimed: %s", reason)
+            return None
+        state = anon_auth.ensure_portal_identity(explicit=True, force=force, welcome_claim=True)
+        if state is None:  # still inside the cooldown of the last failure
+            failure = anon_auth.last_mint_failure() or {}
+            raise anon_auth._anon_err(
+                str(failure.get("error") or anon_auth.ANON_FAILURE_COPY[anon_auth.ANON_SERVER_ERROR]),
+                str(failure.get("error_code") or anon_auth.ANON_SERVER_ERROR),
+                retry_after=failure.get("retry_after"))
+        install_state.mark_machine_used()
     logger.info("Nous free tier: welcome trial claimed on this machine")
     return state
 

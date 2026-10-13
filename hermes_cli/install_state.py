@@ -17,6 +17,7 @@ import json
 import os
 import sqlite3
 import sys
+import threading
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from functools import cache, cached_property
@@ -111,6 +112,26 @@ def mark_machine_used() -> None:
 
 
 _TRIAL_RESERVED = {"trial": "reserved"}
+# Covers a claim's checks, its mint (bounded by its own auth lock and HTTP timeouts) and the marker write.
+CLAIM_LOCK_TIMEOUT_SECONDS = 30.0
+_claim_lock_holder = threading.local()
+
+
+@contextlib.contextmanager
+def claim_lock() -> Iterator[None]:
+    """One welcome-trial claim at a time for this OS user, whichever Hermes data root it runs from
+    (stable and canary started together hold different auth locks). Beside the marker it guards, and
+    taken before any auth lock."""
+    places = machine_places()
+    if not places.markers:
+        yield
+        return
+    from hermes_cli.auth import _file_lock
+
+    lock_path = places.markers[0].with_name(places.markers[0].name + ".lock")
+    with _file_lock(lock_path, _claim_lock_holder, CLAIM_LOCK_TIMEOUT_SECONDS,
+                    f"Timed out waiting for the welcome-trial claim lock ({lock_path})"):
+        yield
 
 
 def reserve_trial() -> None:

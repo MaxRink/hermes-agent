@@ -292,6 +292,46 @@ def test_a_claim_cut_off_before_its_marker_write_never_claims_twice(portal, monk
     assert portal.creates() == 1
 
 
+def test_two_installs_claiming_at_once_mint_one_trial(portal, monkeypatch, tmp_path):
+    """Stable and canary started together: two data roots (each its own auth and shared store, so
+    their auth locks never meet), one OS user, one marker. The canary claims while stable mints."""
+    import threading
+
+    from hermes_cli import auth_nous
+    from hermes_constants import get_hermes_home, reset_hermes_home_override, set_hermes_home_override
+
+    as_local_desktop_backend(monkeypatch)
+    _relaunch()                                          # the trial is reserved for this OS user
+    monkeypatch.setattr(auth_nous, "_nous_shared_auth_dir", lambda: get_hermes_home() / "shared-nous")
+    canary_root = tmp_path / "hermes-canary"
+    canary_root.mkdir()
+    canary: dict = {}
+    canary_done = threading.Event()
+
+    def canary_claims():
+        token = set_hermes_home_override(canary_root)
+        try:
+            canary["state"] = welcome_trial.claim_desktop_free_tier()
+        finally:
+            reset_hermes_home_override(token)
+            canary_done.set()
+
+    stable, canary_thread = threading.current_thread(), threading.Thread(target=canary_claims)
+    real_mint = anon_auth.ensure_portal_identity
+
+    def stable_mints(**kwargs):
+        if threading.current_thread() is stable and not canary_thread.is_alive() and not canary_done.is_set():
+            canary_thread.start()
+            canary_done.wait(timeout=2.0)                # unguarded, the canary claims in this gap
+        return real_mint(**kwargs)
+    monkeypatch.setattr(anon_auth, "ensure_portal_identity", stable_mints)
+
+    assert welcome_trial.claim_desktop_free_tier() is not None
+    canary_thread.join(timeout=30.0)
+    assert canary == {"state": None}
+    assert portal.creates() == 1
+
+
 def test_one_due_answer_walks_the_provider_ladder_once(portal, monkeypatch):
     from hermes_cli import auth
 
