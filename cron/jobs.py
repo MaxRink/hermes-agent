@@ -1973,6 +1973,7 @@ def create_job(
     # jobs.
     for key, value in (
         ("attach_to_session", normalized_attach), ("reasoning_effort", normalized_reasoning_effort),
+        ("max_iterations", f["max_iterations"]),
         ("failure_deliver", f["failure_deliver"]), ("interpreter", f["interpreter"]),
     ):
         if value is not None:
