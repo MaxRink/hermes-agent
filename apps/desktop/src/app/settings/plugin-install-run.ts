@@ -20,11 +20,11 @@ export interface InstallComponents {
   desktop: boolean
 }
 
-const HINT_COMPONENTS: Record<'agent' | 'both' | 'desktop', (probe: ProbeResult) => InstallComponents> = {
+const HINT_COMPONENTS = {
   agent: probe => ({ agent: probe.agent, desktop: false }),
   both: probe => ({ agent: probe.agent, desktop: probe.desktop }),
   desktop: probe => ({ agent: false, desktop: probe.desktop })
-}
+} satisfies Record<'agent' | 'both' | 'desktop', (probe: ProbeResult) => InstallComponents>
 
 /** What an install puts down: every half the repository has, narrowed by a legacy deep link or by
  *  "install the agent half here" (whose desktop half is already loaded). */

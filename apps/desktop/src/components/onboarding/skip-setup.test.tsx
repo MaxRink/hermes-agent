@@ -1,6 +1,6 @@
 import type { OnboardingEndedPayload } from '@hermes/shared'
 import { act, cleanup, render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { $onboardingPhase } from '@/store/onboarding-phase'
 import { noteOnboardingEnded, startOnboarding } from '@/store/onboarding-run'
@@ -8,10 +8,6 @@ import { isOnboardingChat } from '@/store/onboarding-session'
 import { $connection, $selectedStoredSessionId } from '@/store/session'
 
 import { OnboardingSkip } from './skip-setup'
-
-vi.mock('@/app/gateway/hooks/use-gateway-request', () => ({
-  useGatewayRequest: () => ({ requestGateway: vi.fn() })
-}))
 
 const started = { resumed: false, run_id: 'run-1', session_id: 'rt-1', stored_session_id: 'st-1' }
 const ended: OnboardingEndedPayload = { outcome: 'done', run_id: 'run-1', stored_session_id: 'st-1' }

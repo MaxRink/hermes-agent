@@ -7,6 +7,7 @@ import { $introCopy, skipIntro } from '@/components/onboarding/first-run/intro'
 import { group } from '@/components/pane-shell/tree/model'
 import { applyLayoutPreset } from '@/components/pane-shell/tree/presets'
 import { $activePresetId, $layoutTree } from '@/components/pane-shell/tree/store'
+import { setPrimaryGateway } from '@/store/gateway'
 import { $chatOnboardingSolo, $introView } from '@/store/onboarding-intro'
 import { $onboardingPhase } from '@/store/onboarding-phase'
 import {
@@ -20,21 +21,19 @@ import { $activeSessionId, $connection, $selectedStoredSessionId } from '@/store
 import { OnboardingSettings } from './onboarding-settings'
 
 const started = { resumed: false, run_id: 'run-2', session_id: 'rt-2', stored_session_id: 'st-2' }
-const calls: [string, unknown][] = []
 
-// SAFETY: the fake answers onboarding.start / onboarding.state with the fields the start reads.
-const answerGateway: OnboardingRequest = async <T,>(method: string, params?: unknown): Promise<T> => {
+type RequestParams = Parameters<OnboardingRequest>[1]
+
+const calls: [string, RequestParams][] = []
+
+const answerGateway: OnboardingRequest = async <T,>(method: string, params?: RequestParams): Promise<T> => {
   calls.push([method, params])
 
+  // SAFETY: the fake answers onboarding.start / onboarding.state with the fields the start reads.
   return (
     method === 'onboarding.state' ? { eligible: true, run: true, run_id: 'run-2', session_id: 'st-2' } : started
   ) as T
 }
-
-// A mock drops the generic signature, so the direct call below passes the typed function.
-const requestGateway = vi.fn(answerGateway)
-
-vi.mock('@/app/gateway/hooks/use-gateway-request', () => ({ useGatewayRequest: () => ({ requestGateway }) }))
 
 const size = vi.fn()
 
@@ -53,6 +52,8 @@ beforeEach(() => {
     configurable: true,
     value: { chatOnboarding: { size }, guestOnboardingEnabled: true }
   })
+  // SAFETY: the Settings button's gateway request calls only `request` on the primary socket.
+  setPrimaryGateway({ request: answerGateway } as never)
   // SAFETY: factsSource reads only `mode`.
   $connection.set({ mode: 'local' } as never)
   $onboardingChatOpener.set(adopt)
@@ -69,7 +70,10 @@ beforeEach(() => {
   size.mockClear()
 })
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  setPrimaryGateway(null)
+})
 
 async function runAgain() {
   const mine = $layoutTree.get()

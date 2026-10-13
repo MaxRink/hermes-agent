@@ -51,10 +51,10 @@ export function revealDesktopPane(pane: string): boolean {
 
 // Elite is the terminal deck with the tools its card names open. The preset itself rests them, so the
 // same deck picked in Settings stays quiet; a pick from the layout card or set_theme shows the difference.
-const PICK_OPENS: Readonly<Record<string, readonly string[]>> = { 'terminal-deck': ['terminal', 'files'] }
+const PICK_OPENS = new Map<string, readonly string[]>([['terminal-deck', ['terminal', 'files']]])
 
 /** The panes a layout pick opens beyond its preset's resting set. */
-export const layoutPickOpens = (preset: string): readonly string[] => PICK_OPENS[preset] ?? []
+export const layoutPickOpens = (preset: string): readonly string[] => PICK_OPENS.get(preset) ?? []
 
 /** Open the panes `layoutPickOpens` names for `preset`. */
 export function openLayoutPickPanes(preset: string): void {

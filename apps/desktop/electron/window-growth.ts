@@ -1,10 +1,24 @@
-import { type BrowserWindow, ipcMain, type Rectangle, screen } from 'electron'
+import { type BrowserWindow, ipcMain, type IpcMainEvent, type Rectangle, screen } from 'electron'
 
 import type { WindowSizeMode } from './window-size-types'
 import { windowSize } from './window-state'
 
+type SizeRequestListener = (event: Pick<IpcMainEvent, 'sender'>, mode: WindowSizeMode) => void
+
+/** The Electron surface window sizing uses: the size IPC and the display under a window. */
+export interface WindowSizingHost {
+  onSizeRequest: (listener: SizeRequestListener) => void
+  workAreaOf: (bounds: Rectangle) => Rectangle
+}
+
+const electronHost: WindowSizingHost = {
+  onSizeRequest: listener => ipcMain.on('hermes:window:size', listener),
+  workAreaOf: bounds => screen.getDisplayMatching(bounds).workArea
+}
+
 interface WindowSizingOptions {
   enabled: boolean
+  host?: WindowSizingHost
   mainWindow: () => BrowserWindow | null
 }
 
@@ -51,8 +65,8 @@ function sizedBounds(mode: WindowSizeMode, bounds: Rectangle, workArea: Rectangl
 // from Settings leaves an existing user's window where it was.
 const beforeOnboarding = new WeakMap<BrowserWindow, Rectangle>()
 
-export function registerWindowSizing({ enabled, mainWindow }: WindowSizingOptions): void {
-  ipcMain.on('hermes:window:size', (event, mode: WindowSizeMode) => {
+export function registerWindowSizing({ enabled, host = electronHost, mainWindow }: WindowSizingOptions): void {
+  host.onSizeRequest((event, mode) => {
     const win = mainWindow()
 
     if (!enabled || !win || win.isDestroyed() || event.sender !== win.webContents) {
@@ -81,7 +95,7 @@ export function registerWindowSizing({ enabled, mainWindow }: WindowSizingOption
       return
     }
 
-    const next = sizedBounds(mode, bounds, screen.getDisplayMatching(bounds).workArea)
+    const next = sizedBounds(mode, bounds, host.workAreaOf(bounds))
 
     if (next) {
       markAppSized(win, next)

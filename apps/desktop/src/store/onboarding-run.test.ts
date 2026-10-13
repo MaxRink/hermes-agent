@@ -7,6 +7,7 @@ import {
   $onboardingSettleFrom,
   decideOnboarding,
   noteOnboardingEnded,
+  type OnboardingRequest,
   reconcileOnboarding,
   skipOnboarding,
   startOnboarding
@@ -24,11 +25,11 @@ const resume = vi.fn(async (storedId: string) => $selectedStoredSessionId.set(st
 // `runId`: the run onboarding.state reports open; null once something ended it.
 function backend(state: { eligible: boolean; run: boolean }, runId: null | string = 'run-1') {
   const calls: string[] = []
-  const starts: unknown[] = []
+  const starts: Parameters<OnboardingRequest>[1][] = []
   const started = { resumed: false, run_id: 'run-1', session_id: 'rt-1', stored_session_id: 'st-1' }
   const read = { ...state, run_id: runId, session_id: runId && 'st-1' }
 
-  const request = async <T,>(method: string, params?: unknown): Promise<T> => {
+  const request = async <T,>(method: string, params?: Parameters<OnboardingRequest>[1]): Promise<T> => {
     calls.push(method)
 
     if (method === 'onboarding.start') {
