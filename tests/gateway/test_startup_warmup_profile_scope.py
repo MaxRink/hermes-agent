@@ -87,4 +87,3 @@ def test_single_profile_warmup_keeps_environ_semantics(tmp_path, monkeypatch):
     seen = _run_warmup(monkeypatch, multiplex=False)
     assert seen["scope_installed"] is False
     assert seen["portal_override"] == PORTAL
-
