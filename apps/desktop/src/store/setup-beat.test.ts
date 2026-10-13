@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { setupBeatOutcome } from '@/components/assistant-ui/setup-beat/receipt'
 
+import { $onboardingPhase } from './onboarding-phase'
 import { $onboardingSession } from './onboarding-session'
 import {
   answerParkedCard,
@@ -41,6 +42,8 @@ function parkCard(requestId: string, open = true, beat: 'layout' | 'name' = 'nam
 }
 
 beforeEach(() => {
+  // A run is shown whenever its chat is named (startOnboarding).
+  $onboardingPhase.set('shown')
   $onboardingSession.set({ runId: 'run-1', runtimeId: 'rt-1', storedId: 'stored-1' })
 })
 
@@ -48,6 +51,7 @@ afterEach(() => {
   resetServerRequestsForTests()
   $setupBeatRequests.set({})
   $onboardingSession.set(null)
+  $onboardingPhase.set('idle')
 })
 
 describe('setup_beat card', () => {

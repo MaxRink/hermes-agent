@@ -13,6 +13,7 @@ import {
 import { clearQueuedPrompts, getQueuedPrompts } from '@/store/composer-queue'
 import { $connectionRequests, type ConnectionRequest } from '@/store/connection-request'
 import { $gateway } from '@/store/gateway'
+import { $onboardingPhase } from '@/store/onboarding-phase'
 import { $onboardingSession } from '@/store/onboarding-session'
 import {
   clearAllPrompts,
@@ -907,9 +908,11 @@ describe('useComposerSubmit with a setup card waiting in the onboarding chat', (
     resetServerRequestsForTests()
     $setupBeatRequests.set({})
     $onboardingSession.set(null)
+    $onboardingPhase.set('idle')
   })
 
   it('closes the card unanswered and sends the words as the next turn, never into the card turn', () => {
+    $onboardingPhase.set('shown')
     $onboardingSession.set({ runId: 'run-1', runtimeId: 'runtime-session', storedId: 'stored-session' })
     const respond = parkCard('layout')
 
@@ -931,6 +934,7 @@ describe('useComposerSubmit with a setup card waiting in the onboarding chat', (
   })
 
   it('takes words typed on the name card as the name, and sends no message', () => {
+    $onboardingPhase.set('shown')
     $onboardingSession.set({ runId: 'run-1', runtimeId: 'runtime-session', storedId: 'stored-session' })
     const respond = parkCard('name')
 
