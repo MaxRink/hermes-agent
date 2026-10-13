@@ -9,7 +9,12 @@ import { applyLayoutPreset } from '@/components/pane-shell/tree/presets'
 import { $activePresetId, $layoutTree } from '@/components/pane-shell/tree/store'
 import { $chatOnboardingSolo, $introView } from '@/store/onboarding-intro'
 import { $onboardingPhase } from '@/store/onboarding-phase'
-import { $onboardingChatOpener, noteOnboardingEnded, skipOnboarding } from '@/store/onboarding-run'
+import {
+  $onboardingChatOpener,
+  noteOnboardingEnded,
+  type OnboardingRequest,
+  skipOnboarding
+} from '@/store/onboarding-run'
 import { $activeSessionId, $connection, $selectedStoredSessionId } from '@/store/session'
 
 import { OnboardingSettings } from './onboarding-settings'
@@ -18,13 +23,16 @@ const started = { resumed: false, run_id: 'run-2', session_id: 'rt-2', stored_se
 const calls: [string, unknown][] = []
 
 // SAFETY: the fake answers onboarding.start / onboarding.state with the fields the start reads.
-const requestGateway = vi.fn(async <T,>(method: string, params?: unknown): Promise<T> => {
+const answerGateway: OnboardingRequest = async <T,>(method: string, params?: unknown): Promise<T> => {
   calls.push([method, params])
 
   return (
     method === 'onboarding.state' ? { eligible: true, run: true, run_id: 'run-2', session_id: 'st-2' } : started
   ) as T
-})
+}
+
+// A mock drops the generic signature, so the direct call below passes the typed function.
+const requestGateway = vi.fn(answerGateway)
 
 vi.mock('@/app/gateway/hooks/use-gateway-request', () => ({ useGatewayRequest: () => ({ requestGateway }) }))
 
@@ -105,7 +113,7 @@ describe('Settings > Run onboarding again', () => {
     const { mine } = await runAgain()
 
     // What the Skip setup button does.
-    await act(async () => skipOnboarding(requestGateway, 'rt-2').then(skipIntro))
+    await act(async () => skipOnboarding(answerGateway, 'rt-2').then(skipIntro))
 
     expect($chatOnboardingSolo.get()).toBe(false)
     expect(size).toHaveBeenLastCalledWith('normal')

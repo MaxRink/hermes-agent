@@ -1,3 +1,4 @@
+import type { OnboardingEndedPayload } from '@hermes/shared'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,7 +14,7 @@ vi.mock('@/app/gateway/hooks/use-gateway-request', () => ({
 }))
 
 const started = { resumed: false, run_id: 'run-1', session_id: 'rt-1', stored_session_id: 'st-1' }
-const ended = { outcome: 'done', run_id: 'run-1', stored_session_id: 'st-1' }
+const ended: OnboardingEndedPayload = { outcome: 'done', run_id: 'run-1', stored_session_id: 'st-1' }
 const ensureProfile = async (): Promise<void> => undefined
 const resume = async (storedId: string) => $selectedStoredSessionId.set(storedId)
 
