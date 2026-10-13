@@ -55,3 +55,35 @@ def test_deleting_the_newest_copy_ends_the_run_on_every_copy(db, ended):
     assert onboarding_record.active_session_id(db) is None and _flag(db) is False
     assert onboarding_record.load(db, "onb")["ended_by"] == "deleted"
     assert [(e["stored_session_id"], e["outcome"]) for e in ended] == [("tip", "deleted")]
+
+
+def _failing_flag_write(monkeypatch):
+    from hermes_cli import onboarding_run
+
+    def disk_full(value, **kw):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(onboarding_run, "set_run", disk_full)
+
+
+def test_a_delete_whose_flag_write_fails_keeps_the_chat_for_a_retry(db, ended, monkeypatch):
+    with monkeypatch.context() as failing:
+        _failing_flag_write(failing)
+        with pytest.raises(OSError):
+            onboarding_record.delete_chat(db, "onb", lambda: db.delete_session("onb"))
+
+    assert db.get_session("onb") is not None and onboarding_record.active_session_id(db) == "onb" and ended == []
+    assert onboarding_record.delete_chat(db, "onb", lambda: db.delete_session("onb"))
+    assert _flag(db) is False and [e["outcome"] for e in ended] == ["deleted"]
+
+
+def test_a_delete_refused_by_the_write_guard_leaves_the_flag_set(db, ended):
+    from hermes_state_errors import SessionActiveWriteGuardError
+
+    def guarded():
+        raise SessionActiveWriteGuardError("active turn lease")
+
+    with pytest.raises(SessionActiveWriteGuardError):
+        onboarding_record.delete_chat(db, "onb", guarded)
+
+    assert onboarding_record.active_session_id(db) == "onb" and _flag(db) is True and ended == []
