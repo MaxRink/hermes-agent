@@ -7,8 +7,9 @@ import {
   useMessagePartText
 } from '@assistant-ui/react'
 import { useStore } from '@nanostores/react'
-import { type ComponentProps, type FC, type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ComponentProps, type FC, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 
+import { useSessionView } from '@/app/chat/session-view'
 import { CatalogInstallTool } from '@/components/assistant-ui/catalog-install-tool'
 import { ClarifyTool } from '@/components/assistant-ui/clarify'
 import { ConnectorExecution, ConnectorTool } from '@/components/assistant-ui/connector-tool'
@@ -34,6 +35,7 @@ import { isTodoToolName } from '@/lib/todos'
 import { type CardToolName, isCardTool, isCardToolName } from '@/lib/tool-render-class'
 import { useEnterAnimation } from '@/lib/use-enter-animation'
 import { cn } from '@/lib/utils'
+import { onboardingChatStore } from '@/store/onboarding-session'
 import { $reasoningCollapsedByDefault, $showReasoning } from '@/store/reasoning-disclosure'
 import { useForcedTextDirection } from '@/store/text-direction'
 import { $showToolActivity } from '@/store/tool-activity'
@@ -225,7 +227,10 @@ const ThinkingDisclosure: FC<{
   timerKey: string
 }> = ({ children, completedAt, messageRunning = false, pending = false, timestamp, timerKey }) => {
   const { t } = useI18n()
-  const reasoningCollapsedByDefault = useStore($reasoningCollapsedByDefault)
+  const sessionId = useStore(useSessionView().$runtimeId)
+  const onboardingChat = useStore(useMemo(() => onboardingChatStore(sessionId), [sessionId]))
+  // The first-run chat rests reasoning collapsed: its cards and short replies carry the run.
+  const reasoningCollapsedByDefault = useStore($reasoningCollapsedByDefault) || onboardingChat
   // `null` = no explicit user toggle yet. Live reasoning remains visible by
   // default, unless the user opts into the low-jitter collapsed presentation.
   const [userOpen, setUserOpen] = useState<boolean | null>(null)
@@ -240,7 +245,8 @@ const ThinkingDisclosure: FC<{
   // a still-running turn) never latch, so they stay collapsed.
   const [sawLivePreview, setSawLivePreview] = useState(false)
 
-  if (pending && !sawLivePreview) {
+  // Not while collapsed: a block that never showed a preview must not open when the preference lifts.
+  if (pending && !sawLivePreview && !reasoningCollapsedByDefault) {
     setSawLivePreview(true)
   }
 
