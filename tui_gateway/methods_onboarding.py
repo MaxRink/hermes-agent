@@ -53,13 +53,28 @@ def _due_now(*, assume_fresh: bool = False) -> dict[str, bool]:
 
 
 def _due_stamp() -> tuple:
-    """The files the due answer reads, by size and mtime: the root config (``onboarding.run``) and
-    the default profile's config, ``.env`` and ``auth.json`` (what carries a first chat)."""
+    """The files the due answer reads, by their config-cache signature: the root config
+    (``onboarding.run``), the default profile's config, ``.env`` and ``auth.json`` (what carries a
+    first chat), the shared Nous store (another profile's sign-in or connector guest) and the managed
+    layer's ``config.yaml`` and ``.env`` (an admin's onboarding or provider policy)."""
+    from hermes_cli import managed_scope
     from hermes_constants import get_default_hermes_root
+    from utils import file_signature
 
     home = Path(_profile_home("default") or get_default_hermes_root())
-    paths = (get_default_hermes_root() / "config.yaml", home / "config.yaml", home / ".env", home / "auth.json")
-    return tuple((st.st_size, st.st_mtime_ns) if (st := _stat(path)) else None for path in paths)
+    managed = managed_scope.get_managed_dir()
+    paths = (get_default_hermes_root() / "config.yaml", home / "config.yaml", home / ".env", home / "auth.json",
+             *_shared_nous_store(), *((managed / "config.yaml", managed / ".env") if managed else ()))
+    return tuple(file_signature(st) if (st := _stat(path)) else None for path in paths)
+
+
+def _shared_nous_store() -> tuple[Path, ...]:
+    """The shared Nous store as ``_read_shared_nous_state`` finds it: none when the test seat belt trips."""
+    from hermes_cli.auth_nous import _nous_shared_store_path
+    try:
+        return (_nous_shared_store_path(),)
+    except RuntimeError:
+        return ()
 
 
 def _stat(path):

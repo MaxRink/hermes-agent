@@ -157,3 +157,37 @@ def test_the_due_answer_is_worked_out_at_boot_and_served_from_there(portal, monk
 
     assert answers[0]["run"] is True and answers[0]["eligible"] is True and answers == [answers[0]] * 3
     assert callers and set(callers) == {"onboarding-due"}  # the requests themselves never walk the ladder
+
+
+def _connector_guest_from_another_profile(_managed: Path) -> None:
+    from hermes_cli.auth_nous import _write_shared_nous_state
+    from tests.hermes_cli.anon_portal import PORTAL
+
+    _write_shared_nous_state({"auth_method": anon_auth.ANON_AUTH_METHOD, "account_tier": anon_auth.ANON_ACCOUNT_TIER,
+                              "anon_token": "anon_other", "client_id": anon_auth.ANON_CLIENT_ID,
+                              "portal_base_url": PORTAL, anon_auth.WELCOME_CLAIM_FLAG: False})
+
+
+ELSEWHERE = {
+    "shared_connector_guest": (_connector_guest_from_another_profile, "eligible"),
+    "managed_onboarding_off": (lambda managed: (managed / "config.yaml").write_text("onboarding:\n  run: false\n",
+                                                                                     encoding="utf-8"), "run"),
+}
+
+
+@pytest.mark.parametrize("change", list(ELSEWHERE))
+def test_the_cached_due_answer_follows_shared_auth_and_the_managed_layer(portal, monkeypatch, tmp_path, change):
+    from hermes_cli import free_tier_bootstrap
+
+    managed = tmp_path / "managed"
+    managed.mkdir()
+    monkeypatch.setenv("HERMES_MANAGED_DIR", str(managed))
+    as_local_desktop_backend(monkeypatch)
+    free_tier_bootstrap.run_bootstrap(announce=False)
+    cached = _call("onboarding.state")["result"]
+    assert (cached["run"], cached["eligible"]) == (True, True)
+    write, moved = ELSEWHERE[change]
+
+    write(managed)
+
+    assert _call("onboarding.state")["result"][moved] is False
