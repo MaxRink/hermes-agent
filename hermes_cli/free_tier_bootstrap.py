@@ -2,8 +2,9 @@
 
 ``hermes serve`` runs this once at boot on a daemon thread. It never creates an identity: the
 desktop's welcome-trial claim (``hermes_cli.welcome_trial``) and the first hosted connector action
-are the only creators. On the desktop's local backend it first keeps the trial for a guest that
-already ran on the free model (``welcome_trial.grandfather_existing_guest``). Then it inventories
+are the only creators. On the desktop's local backend it first records a fresh install's onboarding
+decision (``onboarding_run.latch_first_install``), then keeps the trial for a guest that already ran
+on the free model (``welcome_trial.grandfather_existing_guest``). Then it inventories
 credentials cheap-first, resolves which provider carries inference, records the answer in process
 memory, and tells every connected client with one ``setup.ready`` event. ``free_tier.status`` and
 ``setup.status`` read the record; provider resolution never reaches the portal.
@@ -196,6 +197,13 @@ def run_bootstrap(*, announce: bool = True) -> SetupRecord:
                 return _record
         _started = True
 
+    try:
+        from hermes_cli import anon_auth
+        from hermes_cli.onboarding_run import latch_first_install
+        if anon_auth.on_local_desktop_backend():
+            latch_first_install()
+    except Exception:  # the next boot tries again; onboarding.state still answers live
+        logger.warning("onboarding: could not record the first-install decision", exc_info=True)
     try:
         from hermes_cli.welcome_trial import grandfather_existing_guest
         grandfather_existing_guest()

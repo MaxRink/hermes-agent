@@ -224,3 +224,51 @@ def test_the_token_seam_refuses_an_inference_token_to_a_guest_without_the_trial(
         anon_auth.refresh_guest_state(state, client, purpose="inference")
 
     assert not [r for r in portal.token_requests if r["body"].get("purpose") != "connectors"]
+
+
+def _root_run():
+    from hermes_cli.config_effective import load_user_config_effective
+    from hermes_constants import get_default_hermes_root
+
+    section = load_user_config_effective(get_default_hermes_root() / "config.yaml").get("onboarding") or {}
+    return section.get("run")
+
+
+def _relaunch():
+    from hermes_cli import free_tier_bootstrap
+
+    install_state.probe.cache_clear()
+    free_tier_bootstrap.reset_for_tests()
+    free_tier_bootstrap.run_bootstrap(announce=False)
+
+
+@pytest.mark.parametrize("used", [False, True], ids=["fresh", "used"])
+def test_the_first_desktop_boot_records_that_onboarding_is_due(portal, monkeypatch, used):
+    from hermes_cli.onboarding_run import set_run
+
+    as_local_desktop_backend(monkeypatch)
+    if used:
+        install_state.mark_machine_used()
+    _relaunch()
+    assert _root_run() is (None if used else True)
+
+    if not used:  # once: a run that ended is not made due again by a later boot
+        set_run(False)
+        _relaunch()
+        assert _root_run() is False
+
+
+def test_a_missed_first_launch_stays_due_and_keeps_the_trial(portal, monkeypatch):
+    from hermes_cli.onboarding_run import should_run
+    from hermes_constants import get_hermes_home
+
+    as_local_desktop_backend(monkeypatch)
+    _relaunch()                                         # first boot; the app never opened onboarding
+    _chat(get_hermes_home() / "state.db", "anthropic/claude")   # then the user chatted
+    install_state.probe.cache_clear()
+
+    assert install_state.probe().existing
+    assert should_run() is True
+    assert welcome_trial.claim_blocker() is None
+    assert welcome_trial.claim_desktop_free_tier() is not None
+    assert welcome_trial.claim_blocker() == "a Nous identity exists"

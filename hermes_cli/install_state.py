@@ -105,15 +105,41 @@ def existing_install() -> bool:
 
 
 def mark_machine_used() -> None:
-    """Record that this machine has a used install, or just claimed the trial. Atomic, idempotent."""
+    """Record that this OS user has a used install, or just claimed the trial. Atomic, idempotent.
+    Overwrites a reservation (:func:`reserve_trial`): a claim consumes it."""
+    _write_marker({})
+
+
+_TRIAL_RESERVED = {"trial": "reserved"}
+
+
+def reserve_trial() -> None:
+    """The first desktop boot found a fresh install: keep the trial for it, so a later use (a chat
+    before onboarding ran, a key added) does not take it away. The marker also makes the probe read
+    "used" from now on; :func:`trial_reserved` is what the claim checks instead."""
+    _write_marker(_TRIAL_RESERVED)
+
+
+def trial_reserved() -> bool:
+    return any(_read_marker(marker) == _TRIAL_RESERVED for marker in machine_places().markers)
+
+
+def _write_marker(content: dict[str, str]) -> None:
     places = machine_places()
     if places.markers:
         from utils import atomic_json_write
 
         marker = places.markers[0]
         marker.parent.mkdir(parents=True, exist_ok=True)
-        atomic_json_write(marker, {})  # unique temp name: two backends may mark at once
+        atomic_json_write(marker, content)  # unique temp name: two backends may mark at once
     probe.cache_clear()
+
+
+def _read_marker(marker: Path) -> Any:
+    try:
+        return json.loads(_read_text(marker)) if marker.is_file() else None
+    except (OSError, ValueError, UnicodeError):
+        return None
 
 
 # ── where to look ─────────────────────────────────────────────────────────────────────────────

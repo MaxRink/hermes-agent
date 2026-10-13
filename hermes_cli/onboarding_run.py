@@ -21,16 +21,34 @@ def should_run(*, assume_fresh: bool = False) -> bool:
     """The root config's explicit ``onboarding.run`` (managed overlay included) when it is a bool,
     else whether this machine has never used Hermes (``install_state``; *assume_fresh* is the
     unpackaged desktop's ``--fresh-install`` switch)."""
+    value = _explicit_run()
+    if value is not None:
+        return value
+    from hermes_cli.install_state import probe
+
+    return assume_fresh or probe().fresh
+
+
+def _explicit_run() -> bool | None:
     from hermes_cli.config_effective import load_user_config_effective
 
     # Not load_config(): it resolves the launch profile and fills the default None for an unset flag.
     section = load_user_config_effective(_root_config()).get("onboarding")
     value = section.get("run") if isinstance(section, dict) else None
-    if isinstance(value, bool):
-        return value
-    from hermes_cli.install_state import probe
+    return value if isinstance(value, bool) else None
 
-    return assume_fresh or probe().fresh
+
+def latch_first_install() -> bool:
+    """The desktop backend's first boot on a fresh install records the decision: ``onboarding.run:
+    true`` and the trial reserved. A launch that misses the run (a late answer, the app closed, the
+    user chatting first) then stays due until a run ends. True when it wrote them."""
+    from hermes_cli.install_state import probe, reserve_trial
+
+    if _explicit_run() is not None or not probe().fresh:
+        return False
+    set_run(True)  # first: a crash before the reservation still leaves a fresh probe for the claim
+    reserve_trial()
+    return True
 
 
 def set_run(value: bool, *, mark_profile_offered: bool = False) -> None:

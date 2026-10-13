@@ -53,9 +53,9 @@ def inference_available(*, assume_fresh: bool = False) -> bool:
 
 
 def _machine_is_used(assume_fresh: bool) -> bool:
-    from hermes_cli.install_state import probe
+    from hermes_cli.install_state import probe, trial_reserved
 
-    return not assume_fresh and probe().existing
+    return not assume_fresh and probe().existing and not trial_reserved()
 
 
 # Cheapest first; the last one reads the disk. Each is a reason the trial cannot be claimed.
