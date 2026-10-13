@@ -1739,6 +1739,19 @@ def _normalize_max_tokens(value: Any) -> Optional[int]:
         raise ValueError("max_tokens must be between 1 and 65536.")
     return parsed
 
+def _normalize_max_iterations(value: Any) -> Optional[int]:
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        raise ValueError("max_iterations must be a positive integer.")
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        raise ValueError("max_iterations must be a positive integer.") from None
+    if parsed < 1 or parsed > 100:
+        raise ValueError("max_iterations must be between 1 and 100.")
+    return parsed
+
 
 def _normalize_reasoning_effort(value: Any) -> Optional[str]:
     """Spelling-only validation via the shared parser (cron knob never stricter/looser than
@@ -1772,6 +1785,7 @@ _CREATE_FIELD_NORMALIZERS: dict[str, Callable[[Any], Any]] = {
     "monitor_url": _normalize_job_optional_text,
     "enabled_toolsets": _normalize_enabled_toolsets,
     "max_tokens": _normalize_max_tokens,
+    "max_iterations": _normalize_max_iterations,
     "workdir": _normalize_workdir,
     "no_agent": bool,
     "context_from": _normalize_context_from,
@@ -1782,6 +1796,7 @@ _UPDATE_FIELD_NORMALIZERS: dict[str, Callable[[Any], Any]] = {
     # [] is an explicit zero-tool allowlist and must survive the update path as [] too (#82010).
     "enabled_toolsets": _normalize_enabled_toolsets,
     "max_tokens": _normalize_max_tokens,
+    "max_iterations": _normalize_max_iterations,
     "workdir": lambda v: None if v in {None, "", False} else _normalize_workdir(v),
     "monitor_script": _normalize_job_optional_text,
     "monitor_url": _normalize_job_optional_text,
@@ -1848,6 +1863,7 @@ def create_job(
     context_from: Optional[str | list[str]] = None,
     enabled_toolsets: Optional[list[str]] = None,
     max_tokens: Optional[int] = None,
+    max_iterations: Optional[int] = None,
     workdir: Optional[str] = None,
     no_agent: bool = False,
     attach_to_session: Optional[bool] = None,

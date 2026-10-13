@@ -81,6 +81,8 @@ def build_cron_parser(subparsers, *, cmd_cron: Callable) -> None:
         help="Restrict this job to a named toolset. Repeatable; omit for profile defaults.")
     cron_create.add_argument("--max-tokens", dest="max_tokens", type=int,
         help="Positive per-job output/admission cap (1-65536).")
+    cron_create.add_argument("--max-iterations", dest="max_iterations", type=int,
+        help="Positive per-job agent iteration cap (1-100).")
     cron_create.add_argument("--interpreter",
         help="Absolute or ~ path to a Python in your own venv (e.g. ~/venvs/report/bin/python) "
             "for a .py --script / --monitor-script, so it can import packages Hermes does not "
@@ -158,6 +160,8 @@ def build_cron_parser(subparsers, *, cmd_cron: Callable) -> None:
         help="Set this job's toolset allowlist to empty.")
     cron_edit.add_argument("--max-tokens", dest="max_tokens", type=int,
         help="Positive per-job output/admission cap (1-65536).")
+    cron_edit.add_argument("--max-iterations", dest="max_iterations", type=int,
+        help="Positive per-job agent iteration cap (1-100).")
     cron_edit.add_argument("--interpreter",
         help="Absolute or ~ path to a Python for a .py script / monitor script. "
             "Pass empty string to clear (back to Hermes' Python).")

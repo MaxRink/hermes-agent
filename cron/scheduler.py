@@ -2433,7 +2433,7 @@ def _resolve_cron_agent_setup(job: dict, job_id: str, job_name: str, jc) -> _Cro
     _mt = _cfg.get("agent", {}).get("max_turns")
     if _mt is None:
         _mt = _cfg.get("max_turns")
-    setup.max_iterations = _resolve_turn_limit(_mt)
+    setup.max_iterations = _resolve_turn_limit(job.get("max_iterations", _mt))
 
     # Runtime backstop (CWE-200/522): fail closed BEFORE resolution on a provider/base_url pair
     # that would ship a stored credential off-host; hand-written jobs bypass create-time checks.

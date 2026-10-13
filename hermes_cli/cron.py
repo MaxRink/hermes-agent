@@ -760,6 +760,7 @@ _JOB_ARG_FIELDS = (("name", "name"), ("deliver", "deliver"), ("failure_deliver",
                    ("monitor_script", "monitor_script"), ("monitor_url", "monitor_url"),
                    ("continuity", "continuity"), ("reasoning_effort", "reasoning_effort"),
                    ("enabled_toolsets", "enabled_toolsets"), ("max_tokens", "max_tokens"),
+                   ("max_iterations", "max_iterations"),
                    ("interpreter", "interpreter"))
 
 
