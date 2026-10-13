@@ -9,7 +9,7 @@ import { useI18n } from '@/i18n'
 import { cn } from '@/lib/utils'
 import { $desktopBoot, type DesktopBootState } from '@/store/boot'
 import { $gatewaySwitching } from '@/store/gateway-switch'
-import { $introStartExit, $introView } from '@/store/onboarding-intro'
+import { $decideExit, $introStartExit, $introView } from '@/store/onboarding-intro'
 import { $onboardingDecided } from '@/store/onboarding-presence'
 import { $gatewayState } from '@/store/session'
 import { isMainWindow } from '@/store/windows'
@@ -114,23 +114,26 @@ function ConnectingOverlayView({ decoding, onExit, phase }: ConnectingOverlayVie
 }
 
 /**
- * Held until the app knows whether onboarding runs, so the chat never flashes before it; the due
- * check has its own short deadline (`decideOnboarding`). Once onboarding runs, the first-run intro's
- * `starting` screen is this overlay and stays up until its chat is open, offering a way out when the
- * start is slow. A rerun from Settings brings that screen back after boot.
+ * Held until the app knows whether onboarding runs, so the chat never flashes before it. The due check
+ * has no deadline: past its budget (`decideOnboarding`) this overlay offers Continue, which releases the
+ * app for this launch. Once onboarding runs, the first-run intro's `starting` screen is this overlay and
+ * stays up until its chat is open, offering a way out when the start is slow. A rerun from Settings
+ * brings that screen back after boot.
  */
 function useOnboardingHold(previewing: boolean) {
   const onboardingDecided = useStore($onboardingDecided)
   const introView = useStore($introView)
   const introStartExit = useStore($introStartExit)
+  const decideExit = useStore($decideExit)
 
   const watching = !previewing && isMainWindow()
   const introStarting = watching && introView === 'starting'
+  const deciding = watching && !onboardingDecided
 
   return {
-    holds: introStarting || (watching && !onboardingDecided),
+    holds: introStarting || deciding,
     introStarting,
-    onExit: introStarting ? introStartExit : null
+    onExit: introStarting ? introStartExit : deciding ? decideExit : null
   }
 }
 

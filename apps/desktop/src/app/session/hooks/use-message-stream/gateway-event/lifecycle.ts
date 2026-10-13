@@ -4,6 +4,7 @@ import type { HermesSkin } from '@hermes/shared/skin'
 import { invalidateContextBreakdown } from '@/app/shell/hooks/use-context-breakdown'
 import { clearClarifyRequest } from '@/store/clarify'
 import {
+  noteGatewayReady,
   notifyCronChanged,
   notifyPairingChanged,
   notifyPetChanged,
@@ -35,6 +36,10 @@ export function handleLifecycleEvent(ctx: GatewayEventContext): boolean {
     // Backends with the change watcher broadcast pet/cron/sessions change
     // events; consumers demote their legacy polls to slow backstops.
     setChangeEventsAvailable(Boolean(ready?.change_events))
+
+    if (fromActiveSource()) {
+      noteGatewayReady()
+    }
 
     return true
   }

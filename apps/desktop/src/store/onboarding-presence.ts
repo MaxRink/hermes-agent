@@ -9,13 +9,14 @@ const EMPTY: ReadonlySet<OnboardingSurface> = new Set()
 export const $onboardingSurfaces = atom<ReadonlySet<OnboardingSurface>>(EMPTY)
 
 /**
- * First-run onboarding's due check has answered (or timed out, or does not apply in this
- * window). Until it has, every "not during setup" surface waits: onboarding may still open.
+ * First-run onboarding's due check has answered (or the person went on without it, or it does not
+ * apply in this window). Until it has, every "not during setup" surface waits: onboarding may still open.
  */
 export const $onboardingDecided = atom(false)
 
-/** How long anything waits on the due check before treating onboarding as not due. */
-export const ONBOARDING_DECIDE_DEADLINE_MS = 4_000
+/** How long after `gateway.ready` the boot overlay waits on the due check before it offers Continue.
+ *  The backend waits up to 8 s on its boot record, then works the answer out live. */
+export const ONBOARDING_DECIDE_OFFER_MS = 15_000
 
 export function markOnboardingDecided(): void {
   $onboardingDecided.set(true)
