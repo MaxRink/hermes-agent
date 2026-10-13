@@ -34,6 +34,7 @@ def _onboarding(home: Path) -> dict:
 
 
 def test_state_answers_run_and_eligible(launched_under_work, monkeypatch):
+    root, _work = launched_under_work
     # The user's own "work" profile is install history, so an unset flag is not due, and on the
     # desktop's local backend nothing carries a first chat: the trial is never claimed on a used machine.
     as_local_desktop_backend(monkeypatch)
@@ -41,7 +42,8 @@ def test_state_answers_run_and_eligible(launched_under_work, monkeypatch):
         monkeypatch.delenv(var, raising=False)
     assert _call("onboarding.state")["result"] == {"run": False, "eligible": False, "session_id": None, "run_id": None}
 
-    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+    # Onboarding runs in the default profile, so its key is what makes the run eligible.
+    (root / ".env").write_text("OPENROUTER_API_KEY=sk-or-test\n", encoding="utf-8")
     assert _call("onboarding.state")["result"]["eligible"] is True
 
 

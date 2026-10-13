@@ -86,6 +86,30 @@ def test_only_the_local_desktop_backend_opens_onboarding_by_itself(portal, monke
     assert _call("onboarding.state")["result"]["eligible"] is True
 
 
+def test_eligible_follows_the_default_profile_not_the_launch_profile(portal, root, monkeypatch):
+    from hermes_cli import profiles
+    work = profiles.create_profile("work", no_alias=True)
+    monkeypatch.setenv("HERMES_HOME", str(work))
+    monkeypatch.setattr(server, "_hermes_home", str(work))
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    (root / ".env").write_text("OPENROUTER_API_KEY=sk-or-test\n", encoding="utf-8")
+    as_local_desktop_backend(monkeypatch)
+    install_state.mark_machine_used()
+
+    assert _call("onboarding.state")["result"]["eligible"] is True
+
+
+def test_a_claim_refreshes_the_setup_record(portal, monkeypatch):
+    from hermes_cli import free_tier_bootstrap
+    as_local_desktop_backend(monkeypatch)
+    free_tier_bootstrap.run_bootstrap(announce=False)
+
+    assert "result" in _call("onboarding.start")
+
+    record = free_tier_bootstrap.current_record()
+    assert record is not None and record.free_tier_account is True
+
+
 def test_the_dev_fresh_install_switch_treats_a_used_machine_as_new(portal, monkeypatch):
     as_local_desktop_backend(monkeypatch)
     install_state.mark_machine_used()

@@ -34,9 +34,13 @@ def _run_state(*, assume_fresh: bool = False) -> dict:
     from hermes_cli.onboarding_run import should_run
     from hermes_cli.welcome_trial import inference_available
 
-    return {"run": should_run(assume_fresh=assume_fresh),
-            "eligible": on_local_desktop_backend() and inference_available(assume_fresh=assume_fresh),
-            **_active_run()}
+    eligible = on_local_desktop_backend()
+    if eligible:
+        # Read in the default profile, where onboarding runs, not the launch profile.
+        home = _profile_home("default")
+        with _session_profile_runtime_scope({"profile_home": str(home) if home else None}):
+            eligible = inference_available(assume_fresh=assume_fresh)
+    return {"run": should_run(assume_fresh=assume_fresh), "eligible": eligible, **_active_run()}
 
 
 # ── first-run onboarding: one chat in the default profile, driven by setup_beat ───────────────
@@ -62,12 +66,14 @@ def _(rid, params: dict) -> dict:
     from agent.onboarding_record import advance, load, open_session_ids, start
     from agent.onboarding_text import CHAT_TITLE, opening_prompt
     from hermes_cli.auth_constants import AuthError
+    from hermes_cli import free_tier_bootstrap
     from hermes_cli.welcome_trial import claim_desktop_free_tier
     # The app's once-per-launch start: closing the app mid-run does not count, so that run's chat goes
     # and the run starts over. A second window or a reconnect sends no flag and gets the run back.
     fresh_launch = bool(params.get("fresh_launch"))
     # Held through the opening submit: two windows pressing start at once get one chat and one opening.
     with _onboarding_start_lock:
+        claimed = None
         try:
             with _profile_db(_ONBOARDING_PROFILE, writer=True) as db:
                 if db is None:
@@ -83,7 +89,7 @@ def _(rid, params: dict) -> dict:
                         # Before the chat exists, so onboarding's own writes are not what the machine
                         # check sees. A rerun never claims: it runs on the configured model.
                         with _session_profile_runtime_scope(scope):
-                            claim_desktop_free_tier(assume_fresh=bool(params.get("assume_fresh")))
+                            claimed = claim_desktop_free_tier(assume_fresh=bool(params.get("assume_fresh")))
                     with _session_profile_runtime_scope(scope, hydrate_secrets=False):
                         facts = read_facts(facts_source=params.get("facts_source") or "local", locale=params.get("locale"))
                     stored = db.create_session(new_session_id(), "desktop")
@@ -113,6 +119,9 @@ def _(rid, params: dict) -> dict:
         except Exception as e:
             logger.exception("onboarding.start failed")
             return _err(rid, 5078, str(e))
+        if claimed is not None:
+            # Outside the default-profile scope: setup.status serves the launch profile's record.
+            free_tier_bootstrap.refresh_record()
         _withdraw_setup_cards([] if fresh_launch else replaced)
         resumed = _methods["session.resume"](rid, {**_ONBOARDING_PROFILE, "session_id": stored, "source": "desktop"})
         if "error" in resumed:
