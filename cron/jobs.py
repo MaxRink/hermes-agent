@@ -1720,6 +1720,26 @@ def _normalize_failure_deliver(value: Any) -> Optional[str]:
     return _normalize_job_optional_text(value)
 
 
+def _normalize_max_tokens(value: Any) -> Optional[int]:
+    """Validate an optional positive per-job output reservation.
+
+    Cron jobs use this value for both provider output caps and LiteLLM
+    admission reservations; bound it so a job cannot silently request an
+    unbounded completion window.
+    """
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        raise ValueError("max_tokens must be a positive integer.")
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        raise ValueError("max_tokens must be a positive integer.") from None
+    if parsed < 1 or parsed > 65536:
+        raise ValueError("max_tokens must be between 1 and 65536.")
+    return parsed
+
+
 def _normalize_reasoning_effort(value: Any) -> Optional[str]:
     """Spelling-only validation via the shared parser (cron knob never stricter/looser than
     config.yaml); model capability is deliberately NOT checked (model unknowable at create time,
@@ -1751,6 +1771,7 @@ _CREATE_FIELD_NORMALIZERS: dict[str, Callable[[Any], Any]] = {
     "monitor_script": _normalize_job_optional_text,
     "monitor_url": _normalize_job_optional_text,
     "enabled_toolsets": _normalize_enabled_toolsets,
+    "max_tokens": _normalize_max_tokens,
     "workdir": _normalize_workdir,
     "no_agent": bool,
     "context_from": _normalize_context_from,
@@ -1760,6 +1781,7 @@ _CREATE_FIELD_NORMALIZERS: dict[str, Callable[[Any], Any]] = {
 _UPDATE_FIELD_NORMALIZERS: dict[str, Callable[[Any], Any]] = {
     # [] is an explicit zero-tool allowlist and must survive the update path as [] too (#82010).
     "enabled_toolsets": _normalize_enabled_toolsets,
+    "max_tokens": _normalize_max_tokens,
     "workdir": lambda v: None if v in {None, "", False} else _normalize_workdir(v),
     "monitor_script": _normalize_job_optional_text,
     "monitor_url": _normalize_job_optional_text,
@@ -1825,6 +1847,7 @@ def create_job(
     script: Optional[str] = None,
     context_from: Optional[str | list[str]] = None,
     enabled_toolsets: Optional[list[str]] = None,
+    max_tokens: Optional[int] = None,
     workdir: Optional[str] = None,
     no_agent: bool = False,
     attach_to_session: Optional[bool] = None,
@@ -1926,6 +1949,7 @@ def create_job(
         "deliver": deliver,
         "origin": origin,  # Tracks where job was created for "origin" delivery
         "enabled_toolsets": f["enabled_toolsets"],
+        "max_tokens": f["max_tokens"],
         "workdir": f["workdir"],
     }
     # Optional keys are persisted only when explicitly set: an absent key falls back to global

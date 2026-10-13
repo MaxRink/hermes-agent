@@ -690,6 +690,7 @@ def _action_create(a: dict[str, Any]) -> str:
             script=_normalize_optional_job_value(script), context_from=context_from,
             # [] is an explicit zero-tool allowlist, not a clear back to the unrestricted default (#82010).
             enabled_toolsets=a["enabled_toolsets"] if a["enabled_toolsets"] is not None else None,
+            max_tokens=a["max_tokens"],
             workdir=_normalize_optional_job_value(a["workdir"]),
             no_agent=_no_agent, attach_to_session=a["attach_to_session"],
             monitor_script=_normalize_optional_job_value(a["monitor_script"]),
@@ -906,6 +907,8 @@ def _update_run_fields(job: dict[str, Any], a: dict[str, Any], updates: dict[str
     if a["enabled_toolsets"] is not None:
         # [] is an explicit zero-tool allowlist, not a clear back to the unrestricted default (#82010).
         updates["enabled_toolsets"] = a["enabled_toolsets"]
+    if a["max_tokens"] is not None:
+        updates["max_tokens"] = a["max_tokens"]
     if a["attach_to_session"] is not None:
         updates["attach_to_session"] = bool(a["attach_to_session"])
     if a["workdir"] is not None:
@@ -1002,6 +1005,7 @@ def cronjob(
     context_from: Optional[str | list[str]] = None,
     continuity: Optional[bool] = None,
     enabled_toolsets: Optional[list[str]] = None,
+    max_tokens: Optional[int] = None,
     workdir: Optional[str] = None,
     no_agent: Optional[bool] = None,
     attach_to_session: Optional[bool] = None,
@@ -1133,6 +1137,12 @@ Jobs run in a fresh session with no current-chat context, so prompts must be sel
                 "type": "array",
                 "items": {"type": "string"},
                 "description": "Optional toolset names to restrict the job's agent to (e.g. [\"web\", \"terminal\"]) — cuts token overhead. Infer from the prompt. Omit for all default tools. [] = an explicit zero-tool allowlist (the job's agent gets no toolsets, MCP servers included unless named); it is preserved as [], never widened back to the default."
+            },
+            "max_tokens": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65536,
+                "description": "Optional positive per-job output/admission cap."
             },
             "workdir": {
                 "type": "string",

@@ -1,0 +1,7 @@
+FROM docker.io/nousresearch/hermes-agent:v0.21.6@sha256:55e192fba0cd4fde61142abbff5adeacff40efdb482ccd0ff877924bd274f909
+COPY cron/jobs.py /opt/hermes/cron/jobs.py
+COPY cron/job_definition.py /opt/hermes/cron/job_definition.py
+COPY cron/scheduler.py /opt/hermes/cron/scheduler.py
+COPY hermes_cli/cron.py /opt/hermes/hermes_cli/cron.py
+COPY hermes_cli/subcommands/cron.py /opt/hermes/hermes_cli/subcommands/cron.py
+COPY tools/cronjob_tools.py /opt/hermes/tools/cronjob_tools.py

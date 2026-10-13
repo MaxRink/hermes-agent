@@ -77,6 +77,10 @@ def build_cron_parser(subparsers, *, cmd_cron: Callable) -> None:
             "medium, high, xhigh, max, or ultra. Overrides agent.reasoning_effort "
             "and agent.reasoning_overrides for this job; unsupported levels are "
             "clamped by the provider at request time. Omit to follow config.")
+    cron_create.add_argument("--enabled-toolset", dest="enabled_toolsets", action="append",
+        help="Restrict this job to a named toolset. Repeatable; omit for profile defaults.")
+    cron_create.add_argument("--max-tokens", dest="max_tokens", type=int,
+        help="Positive per-job output/admission cap (1-65536).")
     cron_create.add_argument("--interpreter",
         help="Absolute or ~ path to a Python in your own venv (e.g. ~/venvs/report/bin/python) "
             "for a .py --script / --monitor-script, so it can import packages Hermes does not "
@@ -148,6 +152,12 @@ def build_cron_parser(subparsers, *, cmd_cron: Callable) -> None:
         help="Pin this job's reasoning (thinking) effort: none, minimal, low, "
             "medium, high, xhigh, max, or ultra. Pass empty string to clear "
             "the pin and follow config resolution.")
+    cron_edit.add_argument("--enabled-toolset", dest="enabled_toolsets", action="append",
+        help="Replace this job's toolset allowlist. Repeatable; omit to preserve it.")
+    _flag(cron_edit, "--clear-toolsets", dest="clear_toolsets",
+        help="Set this job's toolset allowlist to empty.")
+    cron_edit.add_argument("--max-tokens", dest="max_tokens", type=int,
+        help="Positive per-job output/admission cap (1-65536).")
     cron_edit.add_argument("--interpreter",
         help="Absolute or ~ path to a Python for a .py script / monitor script. "
             "Pass empty string to clear (back to Hermes' Python).")

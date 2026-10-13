@@ -759,6 +759,7 @@ _JOB_ARG_FIELDS = (("name", "name"), ("deliver", "deliver"), ("failure_deliver",
                    ("model", "model"), ("provider", "model_provider"), ("pinned", "pinned"),
                    ("monitor_script", "monitor_script"), ("monitor_url", "monitor_url"),
                    ("continuity", "continuity"), ("reasoning_effort", "reasoning_effort"),
+                   ("enabled_toolsets", "enabled_toolsets"), ("max_tokens", "max_tokens"),
                    ("interpreter", "interpreter"))
 
 
@@ -829,6 +830,11 @@ def cron_edit(args):
     remove_skills = set(_normalize_skills(None, getattr(args, "remove_skills", None)) or [])
 
     final_skills = None
+    final_toolsets = None
+    if getattr(args, "clear_toolsets", False):
+        final_toolsets = []
+    elif getattr(args, "enabled_toolsets", None) is not None:
+        final_toolsets = list(args.enabled_toolsets)
     if getattr(args, "clear_skills", False):
         final_skills = []
     elif replacement_skills is not None:
@@ -839,7 +845,8 @@ def cron_edit(args):
     result = _cron_api(action="update", job_id=args.job_id,
                        schedule=getattr(args, "schedule", None),
                        prompt=getattr(args, "prompt", None), skills=final_skills,
-                       no_agent=getattr(args, "no_agent", None), **_job_api_kwargs(args))
+                       no_agent=getattr(args, "no_agent", None),
+                       **({**_job_api_kwargs(args), "enabled_toolsets": final_toolsets} if final_toolsets is not None else _job_api_kwargs(args)))
     if not result.get("success"):
         print(color(f"Failed to update job: {result.get('error', 'unknown error')}", Colors.RED))
         return 1

@@ -2417,6 +2417,7 @@ class _CronAgentSetup:
     reasoning_config: Any = None
     fallback_model: Any = None
     credential_pool: Any = None
+    max_tokens: Any = None
     fallback_notice: Optional[str] = None
 
 
@@ -2450,6 +2451,7 @@ def _resolve_cron_agent_setup(job: dict, job_id: str, job_name: str, jc) -> _Cro
     # Mid-run provider ladder: same rule as resolution above, so a pinned job cannot be swapped
     # onto the global chain by a 5xx/429 either.
     setup.fallback_model = _job_fallback_chain(job, _cfg)
+    setup.max_tokens = job.get("max_tokens")
     setup.credential_pool = _load_credential_pool(setup.runtime, job_id)
     # MCP servers must be registered before AIAgent is constructed.
     _init_cron_mcp_tools(job_id)
@@ -2476,6 +2478,7 @@ def _construct_cron_agent(AIAgent, job: dict, _cfg: dict, setup: _CronAgentSetup
         acp_command=runtime.get("command"),
         acp_args=runtime.get("args"),
         max_iterations=setup.max_iterations,
+        max_tokens=setup.max_tokens,
         reasoning_config=setup.reasoning_config,
         prefill_messages=setup.prefill_messages,
         fallback_model=setup.fallback_model,
