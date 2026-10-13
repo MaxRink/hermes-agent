@@ -176,7 +176,6 @@ def _start_desktop_cron_ticker(stop_event: threading.Event, interval: int = 60) 
 _DESKTOP_MCP_DISCOVERY_DELAY_S = 1.0
 
 
-@asynccontextmanager
 def _probe_install_before_state_db() -> None:
     from hermes_cli.anon_auth import on_local_desktop_backend
 
@@ -190,6 +189,7 @@ def _probe_install_before_state_db() -> None:
         _log.warning("first-install check at boot failed", exc_info=True)
 
 
+@asynccontextmanager
 async def _lifespan(app: FastAPI):
     app.state.event_channels = {}  # dict[str, set]
     app.state.event_lock = asyncio.Lock()
