@@ -355,49 +355,6 @@ method("profiles.get_asset", params=ProfilesGetAssetParams, result=ProfilesGetAs
 # ── onboarding (methods_onboarding) ───────────────────────────────────────────────────────────
 
 
-class OnboardingEnsureSetupProfileResult(Result):
-    """``created`` is false when an existing setup profile was found (and returned untouched)."""
-
-    name: str
-    path: str
-    created: bool
-
-
-method("onboarding.ensure_setup_profile", params=Params, result=OnboardingEnsureSetupProfileResult,
-       doc="Create-or-read the backend-owned setup profile; the backend picks the name.")
-
-
-class OnboardingEnsureSetupSessionParams(Params):
-    messages: list[dict[str, JsonValue]] | None = None
-
-
-class OnboardingEnsureSetupSessionResult(Result):
-    profile: str
-    session_id: str
-    empty: bool
-
-
-method("onboarding.ensure_setup_session", params=OnboardingEnsureSetupSessionParams,
-       result=OnboardingEnsureSetupSessionResult)
-
-
-class OnboardingIntro(WireEnum):
-    unseen = "unseen"
-    seen = "seen"
-
-
-class OnboardingStateResult(Result):
-    eligible: bool
-    intro: OnboardingIntro
-    failed_starts: int
-    completed_at: str | None = None
-    profile: str | None = None
-
-
-method("onboarding.record_failed_start", params=Params, result=OnboardingStateResult)
-method("onboarding.mark_seen", params=Params, result=OnboardingStateResult)
-
-
 class OnboardingRunStateResult(Result):
     """``run``: onboarding opens on this launch (root config ``onboarding.run``, else a fresh
     install). ``eligible``: the free tier is on for this backend (``anon_auth.guest_enabled``).
@@ -469,16 +426,6 @@ class OnboardingSkipResult(Result):
 
 method("onboarding.skip", params=OnboardingSkipParams, result=OnboardingSkipResult,
        doc="Skip setup: end the session's onboarding run and close the card that waits.")
-
-
-class OnboardingResetSetupProfileResult(Result):
-    name: str
-    path: str
-    reset: bool = True
-
-
-method("onboarding.reset_setup_profile", params=Params, result=OnboardingResetSetupProfileResult,
-       doc="Restore the setup profile to its created state in place (soul, memories, skills, sessions).")
 
 
 # ── vault (methods_vault) ─────────────────────────────────────────────────────────────────────
