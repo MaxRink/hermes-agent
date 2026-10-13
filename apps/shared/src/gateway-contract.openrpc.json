@@ -2083,7 +2083,7 @@
         {
           "name": "params",
           "schema": {
-            "$ref": "#/components/schemas/Params"
+            "$ref": "#/components/schemas/OnboardingStateParams"
           }
         }
       ],
@@ -20333,7 +20333,7 @@
       },
       "OnboardingRunStateResult": {
         "additionalProperties": false,
-        "description": "``run``: onboarding opens on this launch (root config ``onboarding.run``, else a fresh\ninstall). ``eligible``: the free tier is on for this backend (``anon_auth.guest_enabled``).\n``session_id``: the stored id of the onboarding chat still in progress, so a relaunch reopens it;\n``run_id``: that run's id, which ``onboarding.ended`` names.",
+        "description": "``run``: onboarding opens on this launch (root config ``onboarding.run``, else a machine that\nnever used Hermes). ``eligible``: this is the desktop's local backend and the welcome trial or a\nconfigured provider can carry the first chat.\n``session_id``: the stored id of the onboarding chat still in progress, so a relaunch reopens it;\n``run_id``: that run's id, which ``onboarding.ended`` names.",
         "properties": {
           "run": {
             "title": "Run",
@@ -20437,7 +20437,7 @@
       },
       "OnboardingStartParams": {
         "additionalProperties": false,
-        "description": "``rerun``: start a new onboarding chat even when one is in progress (Settings, Run onboarding\nagain). ``fresh_launch``: the app's once-per-launch start; a run the app was closed on does not\ncount, so its chat is deleted and the run starts over. ``facts_source``: whether the backend runs\non the user's own computer. ``locale``: the desktop's UI language, preferred over the backend OS\nlocale.",
+        "description": "``rerun``: start a new onboarding chat even when one is in progress (Settings, Run onboarding\nagain; it never claims the welcome trial). ``fresh_launch``: the app's once-per-launch start; a run\nthe app was closed on does not count, so its chat is deleted and the run starts over.\n``facts_source``: whether the backend runs on the user's own computer. ``locale``: the desktop's UI\nlanguage, preferred over the backend OS locale. ``assume_fresh``: as on ``onboarding.state``. A new\nrun on a first install claims the welcome trial before the chat exists; a failed claim is error 5079\nand writes nothing.",
         "properties": {
           "rerun": {
             "default": false,
@@ -20447,6 +20447,11 @@
           "fresh_launch": {
             "default": false,
             "title": "Fresh Launch",
+            "type": "boolean"
+          },
+          "assume_fresh": {
+            "default": false,
+            "title": "Assume Fresh",
             "type": "boolean"
           },
           "facts_source": {
@@ -20497,6 +20502,19 @@
           "run_id"
         ],
         "title": "OnboardingStartResult",
+        "type": "object"
+      },
+      "OnboardingStateParams": {
+        "additionalProperties": false,
+        "description": "``assume_fresh``: the unpackaged desktop's ``--fresh-install`` launch; the backend treats this\nmachine as one that never used Hermes. Packaged builds never send it.",
+        "properties": {
+          "assume_fresh": {
+            "default": false,
+            "title": "Assume Fresh",
+            "type": "boolean"
+          }
+        },
+        "title": "OnboardingStateParams",
         "type": "object"
       },
       "OpenRequestEntry": {

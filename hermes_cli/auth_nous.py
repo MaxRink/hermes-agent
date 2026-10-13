@@ -1037,7 +1037,7 @@ class _NousRuntimeResolve:
             # Guest seam: the anon_ credential is the refresh material; re-exchange instead of
             # redeeming a rotating refresh token. Quarantine never applies to a guest.
             if self.force_refresh or self.invoke_jwt_status() is not None:
-                refresh_guest_state(self.state, client)
+                refresh_guest_state(self.state, client, purpose="inference")
                 self.access_token = self.state["access_token"]
                 self.stored_inference_base_url = self.state.get("inference_base_url") or self.stored_inference_base_url
                 self.inference_base_url = _nous_inference_env_override() or self.stored_inference_base_url
@@ -1069,10 +1069,11 @@ def resolve_nous_runtime_credentials(
     stale_access_token: Optional[str] = None) -> dict[str, Any]:
     """Resolve Nous inference credentials for runtime use (refreshing under the auth-store lock).
 
-    A guest whose ``anon_`` credential NAS no longer knows (reaped or claimed) is retired and a new
-    identity is set up once, transparently -- the one client rule covering both reap and claim.
+    A guest whose ``anon_`` credential NAS no longer knows (reaped or claimed) is retired and never
+    replaced here: the welcome trial is claimed once per machine, so that user goes on to sign-in or
+    provider setup.
     """
-    from hermes_cli.anon_auth import AnonCredentialDead, clear_dead_guest, ensure_portal_identity
+    from hermes_cli.anon_auth import AnonCredentialDead, clear_dead_guest
     from hermes_cli.anon_challenge import run_with_challenge
     try:
         # A free-tier exchange may be answered with a browser challenge; it is worked here, after
@@ -1082,16 +1083,9 @@ def resolve_nous_runtime_credentials(
             force_refresh=force_refresh, stale_access_token=stale_access_token))
     except AnonCredentialDead as dead_exc:
         from hermes_cli.auth import get_provider_auth_state
-        from hermes_cli.anon_auth import ANON_ACCOUNT_LOCKED
         dead = get_provider_auth_state("nous") or {}
         clear_dead_guest(str(dead_exc.code or "anon_credential_dead"), dead_token=dead.get("anon_token"))
-        # A locked account is retired but never silently replaced: the way forward is a sign-in.
-        if dead_exc.code == ANON_ACCOUNT_LOCKED:
-            raise
-        if ensure_portal_identity(explicit=True, timeout_seconds=timeout_seconds) is None:
-            raise
-        return run_with_challenge(lambda: _resolve_nous_runtime_credentials(
-            timeout_seconds=timeout_seconds, insecure=insecure, ca_bundle=ca_bundle))
+        raise
 
 
 def _resolve_nous_runtime_credentials(

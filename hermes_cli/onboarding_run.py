@@ -17,9 +17,10 @@ def _root_config() -> Path:
     return get_default_hermes_root() / "config.yaml"
 
 
-def should_run() -> bool:
+def should_run(*, assume_fresh: bool = False) -> bool:
     """The root config's explicit ``onboarding.run`` (managed overlay included) when it is a bool,
-    else whether this machine has never used Hermes (``install_state``)."""
+    else whether this machine has never used Hermes (``install_state``; *assume_fresh* is the
+    unpackaged desktop's ``--fresh-install`` switch)."""
     from hermes_cli.config_effective import load_user_config_effective
 
     # Not load_config(): it resolves the launch profile and fills the default None for an unset flag.
@@ -29,7 +30,7 @@ def should_run() -> bool:
         return value
     from hermes_cli.install_state import probe
 
-    return probe().fresh
+    return assume_fresh or probe().fresh
 
 
 def set_run(value: bool, *, mark_profile_offered: bool = False) -> None:

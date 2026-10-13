@@ -9,7 +9,7 @@ method = _registry.method
 # flag live in the root profile's config.yaml whichever profile this backend was launched under.
 @method("onboarding.state")
 def _(rid, params: dict) -> dict:
-    return _ok(rid, _run_state())
+    return _ok(rid, _run_state(assume_fresh=bool(params.get("assume_fresh"))))
 
 
 @method("onboarding.set_run")
@@ -25,11 +25,18 @@ def _(rid, params: dict) -> dict:
     return _ok(rid, _run_state())
 
 
-def _run_state() -> dict:
-    from hermes_cli.anon_auth import guest_enabled
+def _run_state(*, assume_fresh: bool = False) -> dict:
+    """``run``: the root config says so, else this machine never used Hermes (or the unpackaged
+    desktop's ``--fresh-install`` says to assume that). ``eligible``: this is the desktop's local
+    backend and something can carry the first chat (the welcome trial or a configured provider);
+    remote backends run onboarding only from Settings."""
+    from hermes_cli.anon_auth import on_local_desktop_backend
     from hermes_cli.onboarding_run import should_run
+    from hermes_cli.welcome_trial import inference_available
 
-    return {"run": should_run(), "eligible": guest_enabled(), **_active_run()}
+    return {"run": should_run(assume_fresh=assume_fresh),
+            "eligible": on_local_desktop_backend() and inference_available(assume_fresh=assume_fresh),
+            **_active_run()}
 
 
 # ── first-run onboarding: one chat in the default profile, driven by setup_beat ───────────────
@@ -54,6 +61,8 @@ def _(rid, params: dict) -> dict:
     from agent.onboarding_flow import End, Facts
     from agent.onboarding_record import advance, load, open_session_ids, start
     from agent.onboarding_text import CHAT_TITLE, opening_prompt
+    from hermes_cli.auth_constants import AuthError
+    from hermes_cli.welcome_trial import claim_desktop_free_tier
     # The app's once-per-launch start: closing the app mid-run does not count, so that run's chat goes
     # and the run starts over. A second window or a reconnect sends no flag and gets the run back.
     fresh_launch = bool(params.get("fresh_launch"))
@@ -69,8 +78,13 @@ def _(rid, params: dict) -> dict:
                 if created:
                     # The tours setting is the default profile's, whichever profile launched the backend.
                     home = _profile_home("default")
-                    with _session_profile_runtime_scope({"profile_home": str(home) if home else None},
-                                                        hydrate_secrets=False):
+                    scope = {"profile_home": str(home) if home else None}
+                    if not params.get("rerun"):
+                        # Before the chat exists, so onboarding's own writes are not what the machine
+                        # check sees. A rerun never claims: it runs on the configured model.
+                        with _session_profile_runtime_scope(scope):
+                            claim_desktop_free_tier(assume_fresh=bool(params.get("assume_fresh")))
+                    with _session_profile_runtime_scope(scope, hydrate_secrets=False):
                         facts = read_facts(facts_source=params.get("facts_source") or "local", locale=params.get("locale"))
                     stored = db.create_session(new_session_id(), "desktop")
                     # The record exists before the agent is built, so the build folds the onboarding toolset in.
@@ -91,6 +105,11 @@ def _(rid, params: dict) -> dict:
                     db.set_session_title(stored, db.get_next_title_in_lineage(CHAT_TITLE))
                 # A chat with no messages never got its opening (a restart between start and the first turn).
                 opening = None if (db.get_session(stored) or {}).get("message_count") else opening_prompt(facts)
+        except AuthError as e:
+            # The trial claim failed (portal down, rate limited): nothing was written, so the next
+            # launch is still a first install and tries again.
+            logger.info("onboarding.start: welcome trial not claimed: %s", e)
+            return _err(rid, 5079, str(e))
         except Exception as e:
             logger.exception("onboarding.start failed")
             return _err(rid, 5078, str(e))

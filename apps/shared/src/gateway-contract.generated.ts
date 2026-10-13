@@ -2180,7 +2180,11 @@ export interface ProfilesGetAssetResult {
   size?: number | null
   data?: string | null
 }
-/** ``run``: onboarding opens on this launch (root config ``onboarding.run``, else a fresh install). ``eligible``: the free tier is on for this backend (``anon_auth.guest_enabled``). ``session_id``: the stored id of the onboarding chat still in progress, so a relaunch reopens it; ``run_id``: that run's id, which ``onboarding.ended`` names. */
+/** ``assume_fresh``: the unpackaged desktop's ``--fresh-install`` launch; the backend treats this machine as one that never used Hermes. Packaged builds never send it. */
+export interface OnboardingStateParams {
+  assume_fresh?: boolean
+}
+/** ``run``: onboarding opens on this launch (root config ``onboarding.run``, else a machine that never used Hermes). ``eligible``: this is the desktop's local backend and the welcome trial or a configured provider can carry the first chat. ``session_id``: the stored id of the onboarding chat still in progress, so a relaunch reopens it; ``run_id``: that run's id, which ``onboarding.ended`` names. */
 export interface OnboardingRunStateResult {
   run: boolean
   eligible: boolean
@@ -2192,10 +2196,11 @@ export interface OnboardingSetRunParams {
   run: boolean
   mark_profile_offered?: boolean
 }
-/** ``rerun``: start a new onboarding chat even when one is in progress (Settings, Run onboarding again). ``fresh_launch``: the app's once-per-launch start; a run the app was closed on does not count, so its chat is deleted and the run starts over. ``facts_source``: whether the backend runs on the user's own computer. ``locale``: the desktop's UI language, preferred over the backend OS locale. */
+/** ``rerun``: start a new onboarding chat even when one is in progress (Settings, Run onboarding again; it never claims the welcome trial). ``fresh_launch``: the app's once-per-launch start; a run the app was closed on does not count, so its chat is deleted and the run starts over. ``facts_source``: whether the backend runs on the user's own computer. ``locale``: the desktop's UI language, preferred over the backend OS locale. ``assume_fresh``: as on ``onboarding.state``. A new run on a first install claims the welcome trial before the chat exists; a failed claim is error 5079 and writes nothing. */
 export interface OnboardingStartParams {
   rerun?: boolean
   fresh_launch?: boolean
+  assume_fresh?: boolean
   facts_source?: OnboardingFactsSource
   locale?: string | null
 }
@@ -5345,7 +5350,7 @@ export interface RpcMethods {
   /** Open the onboarding chat in the default profile: create it, write its run record and play the opening. */
   'onboarding.start': { params: OnboardingStartParams; result: OnboardingStartResult }
   /** Whether desktop first-run onboarding is due, and the chat in progress; reads the root profile's config. */
-  'onboarding.state': { params: Params; result: OnboardingRunStateResult }
+  'onboarding.state': { params: OnboardingStateParams; result: OnboardingRunStateResult }
   /** Spill a large paste to a file and hand back the inline placeholder. */
   'paste.collapse': { params: PasteCollapseParams; result: PasteCollapseResult }
   /** Render a PDF's pages to PNG and queue them as images for the next turn. */

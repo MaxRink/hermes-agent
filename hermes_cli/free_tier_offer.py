@@ -47,7 +47,7 @@ def _transaction() -> Iterator[tuple[dict[str, Any], Any]]:
 
 def _on_free_tier() -> bool:
     from hermes_cli import anon_auth
-    return anon_auth.has_guest() and anon_auth.guest_enabled()
+    return anon_auth.free_inference_active()
 
 
 def _due_at(state: dict[str, Any]) -> Optional[float]:
