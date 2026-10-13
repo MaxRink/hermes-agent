@@ -14,7 +14,8 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 from agent import onboarding_flow as flow
-from agent.onboarding_text import QUESTIONS, finish_reminder, reminder
+from agent.onboarding_text import finish_reminder, reminder
+from agent.onboarding_text import question as beat_question
 from tools.registry import registry, tool_error
 
 logger = logging.getLogger(__name__)
@@ -131,7 +132,7 @@ def setup_beat_tool(args: Mapping[str, Any], *, db=None, session_id: str = "", t
     shown = records.advance(db, session_id, flow.Shown(beat, tool_call_id, args.get("options"), args.get("suggest")))
     if shown.result:  # refused, or a beat this machine skips
         return _result(shown)
-    question = str(args.get("question") or "").strip() or QUESTIONS[beat]
+    question = str(args.get("question") or "").strip() or beat_question(beat, (record.get("facts") or {}).get("locale"))
     reply = callback({"beat": beat, "question": question, "card": _card(beat, shown, args),
                       "tool_call_id": tool_call_id or None})
     after = records.load(db, session_id)

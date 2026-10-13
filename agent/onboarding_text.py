@@ -20,6 +20,55 @@ from tools.set_theme_tool import ACCENT_SWATCHES
 CHAT_TITLE = "Getting started"
 GREETING = "Hi, I'm Hermes. Let's set things up for you. Then we'll get something cool done."
 
+# The scripted opening in each desktop UI language (apps/desktop/src/i18n/languages.ts), played before
+# the model speaks; the model writes the rest of the run in the user's language itself. Each greeting
+# is the desktop's first-run intro copy (firstRun.intro in apps/desktop/src/i18n/*_first_run.ts), its
+# two lines joined: keep the two equal.
+_GREETINGS = {
+    "en": GREETING,
+    "ar": "مرحبًا، أنا Hermes. لنجهّز كل شيء لك، ثم ننجز معًا شيئًا رائعًا.",
+    "de": "Hallo, ich bin Hermes. Richten wir alles für Sie ein. Danach machen wir etwas Cooles.",
+    "es": "Hola, soy Hermes. Vamos a dejarlo todo listo para ti. Luego haremos algo genial.",
+    "fr": "Bonjour, je suis Hermes. Configurons tout pour vous. Ensuite, nous ferons quelque chose de génial.",
+    "ja": "こんにちは、Hermes です。まずはあなたに合わせて設定しましょう。そのあと、何かすごいものを作りましょう。",
+    "ru": "Привет, я Hermes. Давайте всё настроим под вас. А потом сделаем что-нибудь классное.",
+    "zh": "你好，我是 Hermes。我们先帮你把一切设置好，然后一起做点很酷的事。",
+    "zh-hant": "你好，我是 Hermes。我們先幫你把一切設定好，然後一起做點很酷的事。",
+}
+
+_NAME_QUESTIONS = {
+    "ar": "بماذا أناديك؟",
+    "de": "Wie darf ich Sie nennen?",
+    "es": "¿Cómo quieres que te llame?",
+    "fr": "Comment dois-je vous appeler ?",
+    "ja": "なんとお呼びすればいいですか？",
+    "ru": "Как к вам обращаться?",
+    "zh": "我该怎么称呼你？",
+    "zh-hant": "我該怎麼稱呼你？",
+}
+
+_TRADITIONAL_CHINESE = {"hant", "tw", "hk", "mo"}
+
+
+def ui_language(locale: str | None) -> str:
+    """A locale (``zh-hant``, ``de-DE``, ``zh_TW``) as the desktop language it reads in; English when
+    none fits."""
+    tags = (locale or "").strip().lower().replace("_", "-").split("-")
+    if tags[0] == "zh":
+        return "zh-hant" if _TRADITIONAL_CHINESE.intersection(tags[1:]) else "zh"
+    return tags[0] if tags[0] in _GREETINGS else "en"
+
+
+def greeting(locale: str | None) -> str:
+    return _GREETINGS[ui_language(locale)]
+
+
+def question(beat: str, locale: str | None) -> str:
+    """The card's own question; the name card asks in the user's language."""
+    if beat == "name":
+        return _NAME_QUESTIONS.get(ui_language(locale), QUESTIONS["name"])
+    return QUESTIONS[beat]
+
 QUESTIONS = {
     "name": "What should I call you?",
     "theme": "Pick a colour.",

@@ -239,16 +239,17 @@ def _onboarding_prelude(agent, history: list):
     greeting already in the chat (a relaunch) is not said twice."""
     from agent.onboarding_flow import PENDING, is_active
     from agent.onboarding_record import load
-    from agent.onboarding_text import GREETING
+    from agent.onboarding_text import greeting
     if not _builds_onboarding(agent):
         return None
     record = load(agent._session_db, agent.session_id)
     if not is_active(record) or record["beats"]["name"] != PENDING:
         return None
-    said = any(m.get("role") == "assistant" and m.get("content") == GREETING for m in history)
+    hello = greeting((record.get("facts") or {}).get("locale"))
+    said = any(m.get("role") == "assistant" and m.get("content") == hello for m in history)
 
     def opening():
-        yield ("" if said else GREETING), "setup_beat", {"beat": "name"}
+        yield ("" if said else hello), "setup_beat", {"beat": "name"}
     return opening()
 
 

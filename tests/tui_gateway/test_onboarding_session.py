@@ -126,6 +126,29 @@ def test_the_opening_plays_the_greeting_and_name_card_until_the_name_card_was_sh
     assert server._onboarding_prelude(SimpleNamespace(valid_tool_names={"terminal"}), []) is None
 
 
+@pytest.mark.parametrize("locale, opens_with, asks", [
+    ("de", "Hallo, ich bin Hermes.", "Wie darf ich Sie nennen?"),
+    ("zh_TW", "你好，我是 Hermes。我們", "我該怎麼稱呼你？"),
+    ("ja-JP", "こんにちは、Hermes です。", "なんとお呼びすればいいですか？"),
+    ("tlh", GREETING, "What should I call you?"),
+    (None, GREETING, "What should I call you?"),
+])
+def test_the_opening_greets_and_asks_the_name_in_the_run_s_locale(root, locale, opens_with, asks):
+    from tools.setup_beat_tool import setup_beat_tool
+
+    db = server._get_db()
+    db.create_session("onb", "desktop")
+    onboarding_record.start(db, "onb", Facts(os="macos", locale=locale))
+    agent = _agent(db)
+
+    [(hello, tool, args)] = list(server._onboarding_prelude(agent, []))
+    assert hello.startswith(opens_with) and (tool, args) == ("setup_beat", {"beat": "name"})
+    assert next(iter(server._onboarding_prelude(agent, [{"role": "assistant", "content": hello}])))[0] == ""
+    shown = []
+    setup_beat_tool(args, db=db, session_id="onb", callback=lambda payload: shown.append(payload) or None)
+    assert shown[0]["question"] == asks
+
+
 def test_the_turn_note_rides_a_user_turn_only_while_the_run_is_open(root):
     db = server._get_db()
     db.create_session("onb", "desktop")
