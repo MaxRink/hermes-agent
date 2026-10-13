@@ -138,3 +138,19 @@ def test_gateway_service_definitions_name_their_homes(tmp_path, monkeypatch):
                                                                                 str(tmp_path / "*gateway*")))
 
     assert set(install_state._service_homes()) == {home, Path(f"{home}-win")}
+
+
+def test_a_state_db_another_process_holds_locked_is_not_use(machine, monkeypatch):
+    other, _places = machine
+    db = other / "state.db"
+    sqlite3.connect(db).execute("CREATE TABLE messages (id INTEGER)").connection.close()
+    monkeypatch.setattr(install_state, "_DB_BUSY_SECONDS", 0.05, raising=False)
+    # A first boot creating or healing this state.db holds a write lock while the probe runs.
+    holder = sqlite3.connect(db, isolation_level=None)
+    holder.execute("PRAGMA journal_mode=DELETE")
+    holder.execute("BEGIN EXCLUSIVE")
+    try:
+        assert install_state.probe().fresh
+    finally:
+        holder.execute("ROLLBACK")
+        holder.close()

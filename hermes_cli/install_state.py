@@ -318,15 +318,26 @@ def _provider_login(home: _Root) -> bool:
     return False
 
 
+_DB_BUSY_SECONDS = 1.0
+_DB_BUSY_ERRORS = frozenset({"SQLITE_BUSY", "SQLITE_LOCKED"})
+
+
 def _messages(home: _Root) -> bool:
     db = home.path / "state.db"
     if not db.is_file():
         return False
     # Read-only URI, never the state registry: that opens a writer and migrates a schema we do not own.
-    with contextlib.closing(sqlite3.connect(f"{db.as_uri()}?mode=ro", uri=True, timeout=1)) as conn:
-        if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='messages'").fetchone() is None:
+    try:
+        with contextlib.closing(sqlite3.connect(f"{db.as_uri()}?mode=ro", uri=True, timeout=_DB_BUSY_SECONDS)) as conn:
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='messages'").fetchone() is None:
+                return False
+            return conn.execute("SELECT 1 FROM messages LIMIT 1").fetchone() is not None
+    except sqlite3.OperationalError as exc:
+        # Still locked after sqlite's own retries: a first boot is creating or healing this database
+        # right now. A lock is not a message, and reading it as "unreadable" would cost a new user the trial.
+        if getattr(exc, "sqlite_errorname", "") in _DB_BUSY_ERRORS:
             return False
-        return conn.execute("SELECT 1 FROM messages LIMIT 1").fetchone() is not None
+        raise
 
 
 CHECKS: tuple[tuple[Evidence, Callable[[_Root], bool]], ...] = (
