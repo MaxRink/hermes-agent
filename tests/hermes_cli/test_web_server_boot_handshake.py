@@ -65,8 +65,7 @@ def test_lifespan_warmup_is_synchronous(monkeypatch):
 def test_lifespan_enters_and_exits_as_an_async_context_manager(monkeypatch):
     """FastAPI gets ``_lifespan`` as an async context manager, never a bare async generator
     (Starlette's deprecated path), and entering it runs the desktop's first-install check."""
-    import hermes_cli.anon_auth as anon_auth
-    import hermes_cli.install_state as install_state
+    from hermes_cli import anon_auth, install_state
 
     probed: list[bool] = []
     monkeypatch.setattr(web_server_mod, "_warm_gateway_module", lambda: None)
