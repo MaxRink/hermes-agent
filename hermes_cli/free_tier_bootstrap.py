@@ -110,6 +110,7 @@ def reconcile_record() -> Optional[SetupRecord]:
         if _record is not record:  # a retry replaced it meanwhile; its inventory is newer
             return _record
         _record = refreshed
+    _due_changed()
     _broadcast(refreshed)
     return refreshed
 
@@ -227,9 +228,16 @@ def refresh_record(*, announce: bool = True) -> Optional[SetupRecord]:
     record = _build_record(other=_inventory_other_providers())
     with _lock:
         _record = record
+    _due_changed()
     if announce:
         _broadcast(record)
     return record
+
+
+def _due_changed() -> None:
+    from hermes_cli import onboarding_due
+
+    onboarding_due.invalidate()
 
 
 def _broadcast(record: SetupRecord) -> None:

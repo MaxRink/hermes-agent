@@ -4,6 +4,7 @@ chat, and only the desktop's local backend opens onboarding by itself."""
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 import httpx
@@ -93,14 +94,14 @@ def test_a_crash_right_after_the_claim_keeps_onboarding_due(portal, monkeypatch)
     assert portal.creates() == 1
 
 
-def test_only_the_local_desktop_backend_opens_onboarding_by_itself(portal, monkeypatch):
+def test_only_the_local_desktop_backend_opens_onboarding_by_itself(portal, root, monkeypatch):
     assert _call("onboarding.state")["result"]["eligible"] is False   # CLI / SSH / URL backend
 
     as_local_desktop_backend(monkeypatch)
     install_state.mark_machine_used()
     assert _call("onboarding.state")["result"] == {"run": False, "eligible": False, "session_id": None, "run_id": None}
 
-    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+    (root / ".env").write_text("OPENROUTER_API_KEY=sk-or-test\n", encoding="utf-8")  # a key saved later
     assert _call("onboarding.state")["result"]["eligible"] is True
 
 
@@ -135,3 +136,19 @@ def test_the_dev_fresh_install_switch_treats_a_used_machine_as_new(portal, monke
     assert _call("onboarding.state", {"assume_fresh": True})["result"]["run"] is True
     assert "result" in _call("onboarding.start", {"assume_fresh": True})
     assert portal.creates() == 1
+
+
+def test_the_due_answer_is_worked_out_at_boot_and_served_from_there(portal, monkeypatch):
+    from hermes_cli import auth, free_tier_bootstrap
+
+    as_local_desktop_backend(monkeypatch)
+    free_tier_bootstrap.run_bootstrap(announce=False)
+    real, callers = auth.resolve_provider, []
+    monkeypatch.setattr(auth, "resolve_provider",
+                        lambda *a, **kw: (callers.append(threading.current_thread().name), real(*a, **kw))[1])
+    server.start_due_boot()
+
+    answers = [_call("onboarding.state")["result"] for _ in range(3)]
+
+    assert answers[0]["run"] is True and answers[0]["eligible"] is True and answers == [answers[0]] * 3
+    assert callers and set(callers) == {"onboarding-due"}  # the requests themselves never walk the ladder

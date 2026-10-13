@@ -26,21 +26,66 @@ def _(rid, params: dict) -> dict:
 
 
 def _run_state(*, assume_fresh: bool = False) -> dict:
-    """``run``: the root config says so, else this machine never used Hermes (or the unpackaged
+    """``run``: the root config says so, else this OS user never used Hermes (or the unpackaged
     desktop's ``--fresh-install`` says to assume that). ``eligible``: this is the desktop's local
     backend and something can carry the first chat (the welcome trial or a configured provider);
-    remote backends run onboarding only from Settings."""
+    remote backends answer at once and run onboarding only from Settings. On the local backend the
+    answer comes from the boot computation (``onboarding_due``); ``--fresh-install`` asks live."""
+    from hermes_cli import onboarding_due
     from hermes_cli.anon_auth import on_local_desktop_backend
+    from hermes_cli.onboarding_run import should_run
+
+    if not on_local_desktop_backend():
+        return {"run": should_run(assume_fresh=assume_fresh), "eligible": False, **_active_run()}
+    due = _due_now(assume_fresh=True) if assume_fresh else onboarding_due.read(_due_now, stamp=_due_stamp)
+    return {**due, **_active_run()}
+
+
+def _due_now(*, assume_fresh: bool = False) -> dict[str, bool]:
     from hermes_cli.onboarding_run import should_run
     from hermes_cli.welcome_trial import inference_available
 
-    eligible = on_local_desktop_backend()
-    if eligible:
-        # Read in the default profile, where onboarding runs, not the launch profile.
-        home = _profile_home("default")
-        with _session_profile_runtime_scope({"profile_home": str(home) if home else None}):
-            eligible = inference_available(assume_fresh=assume_fresh)
-    return {"run": should_run(assume_fresh=assume_fresh), "eligible": eligible, **_active_run()}
+    # Read in the default profile, where onboarding runs, not the launch profile.
+    home = _profile_home("default")
+    with _session_profile_runtime_scope({"profile_home": str(home) if home else None}):
+        eligible = inference_available(assume_fresh=assume_fresh)
+    return {"run": should_run(assume_fresh=assume_fresh), "eligible": eligible}
+
+
+def _due_stamp() -> tuple:
+    """The files the due answer reads, by size and mtime: the root config (``onboarding.run``) and
+    the default profile's config, ``.env`` and ``auth.json`` (what carries a first chat)."""
+    from hermes_constants import get_default_hermes_root
+
+    home = Path(_profile_home("default") or get_default_hermes_root())
+    paths = (get_default_hermes_root() / "config.yaml", home / "config.yaml", home / ".env", home / "auth.json")
+    return tuple((st.st_size, st.st_mtime_ns) if (st := _stat(path)) else None for path in paths)
+
+
+def _stat(path):
+    try:
+        return path.stat()
+    except OSError:
+        return None
+
+
+def start_due_boot() -> None:
+    """Serve boot, desktop's local backend: work out the due answer off the RPC path, after the setup
+    bootstrap has recorded a fresh install and kept an existing guest's trial."""
+    from agent.memory_provider import spawn_context_thread
+    from hermes_cli import free_tier_bootstrap, onboarding_due
+    from hermes_cli.anon_auth import on_local_desktop_backend
+
+    if not on_local_desktop_backend():
+        return
+    finish = onboarding_due.begin_boot(_due_stamp)
+
+    def compute() -> dict[str, bool]:
+        free_tier_bootstrap.wait_for_record()
+        return _due_now()
+
+    # finish() marks the boot done even when compute raises, so no reader waits on a dead thread.
+    spawn_context_thread(finish, name="onboarding-due", args=(compute,)).start()
 
 
 # ── first-run onboarding: one chat in the default profile, driven by setup_beat ───────────────

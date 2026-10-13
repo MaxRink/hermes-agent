@@ -318,6 +318,9 @@ async def _lifespan(app: FastAPI):
     from hermes_cli.free_tier_bootstrap import start_background_bootstrap
 
     start_background_bootstrap()
+    # The desktop's onboarding due answer, worked out after that bootstrap and before it is asked.
+    # Through the server: methods_* functions run with the server's globals (``bind_module``).
+    tui_gateway.server.start_due_boot()
 
     try:
         yield

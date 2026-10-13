@@ -65,3 +65,6 @@ def set_run(value: bool, *, mark_profile_offered: bool = False) -> None:
         if mark_profile_offered:
             config_mod._ensure_dict(section, "seen")[PROFILE_BUILD_FLAG] = True
         config_mod.atomic_config_write(path, config)
+    from hermes_cli import onboarding_due
+
+    onboarding_due.invalidate()
