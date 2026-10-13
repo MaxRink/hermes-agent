@@ -1,6 +1,7 @@
 import type { ToolCallMessagePartProps } from '@assistant-ui/react'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { atom } from 'nanostores'
+import { Fragment } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { PRIMARY_SESSION_VIEW, type SessionView, SessionViewProvider } from '@/app/chat/session-view'
@@ -72,7 +73,7 @@ describe('ThemeTool', () => {
     expect(screen.getByText('Ultraviolet').closest('[data-theme-settled]')).not.toBeNull()
   })
 
-  it('puts the previous accent back when the card settles without a pick', () => {
+  it('puts the previous accent back when the card settles without a pick', async () => {
     const respond = park('accent')
 
     const { rerender } = renderRow({ args: { picker: 'accent' } })
@@ -82,7 +83,7 @@ describe('ThemeTool', () => {
     rerender(row({ args: { picker: 'accent' }, result: { cancelled: true } }))
 
     expect(respond).not.toHaveBeenCalled()
-    expect($accentOverride.get()).toBeNull()
+    await waitFor(() => expect($accentOverride.get()).toBeNull())
   })
 
   it('draws the layout card for a call made through the tool_call bridge', () => {
@@ -95,6 +96,22 @@ describe('ThemeTool', () => {
     fireEvent.click(screen.getByRole('button', { name: /Elite/ }))
 
     expect(respond).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+
+    expect(respond).toHaveBeenCalledWith({ picked: { layout: 'terminal-deck' } })
+  })
+
+  it('keeps a staged layout when its preview remounts the card', () => {
+    const respond = park('layout')
+    const props = { args: { picker: 'layout' } }
+    // A layout preview re-parents the chat; a new key remounts the row the same way.
+    const { rerender } = render(<Fragment key="before">{row(props)}</Fragment>)
+
+    fireEvent.click(screen.getByRole('button', { name: /Elite/ }))
+    rerender(<Fragment key="after">{row(props)}</Fragment>)
+
+    expect(screen.getByRole('button', { name: /Elite/ }).getAttribute('aria-pressed')).toBe('true')
 
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { type PreviewUndo, snapshotChatLayout } from '@/components/onboarding/first-run/assembly'
 import { applyDesktopLayoutPreset } from '@/store/pane-focus'
@@ -44,43 +44,79 @@ export interface LookPreview {
   staged: null | StagedLook
 }
 
+/** A look's open preview: the staged pick and the value from before the first preview. */
+interface Held {
+  mounts: number
+  settled: boolean
+  staged: null | StagedLook
+  undo: null | PreviewUndo
+}
+
+// A layout preview re-parents the chat, which remounts the card that staged it. The preview outlives the
+// card instance, so the remounted card shows the pick, and only a card that stays gone puts the old look back.
+const held = new Map<'accent' | 'layout', Held>()
+
 /** Click previews a look live; a card that unmounts without Continue (cancel, timeout, Skip setup,
  *  words in the composer) puts back the value from before the preview. */
 export function useLookPreview(kind: 'accent' | 'layout', dark: boolean): LookPreview {
   const live = kind === 'accent' ? ACCENT : LAYOUT
-  const [staged, setStaged] = useState<null | StagedLook>(null)
-  // The value from before this card's first preview.
-  const undo = useRef<null | PreviewUndo>(null)
-  const settled = useRef(false)
+  const [staged, setStaged] = useState<null | StagedLook>(() => held.get(kind)?.staged ?? null)
 
-  useEffect(
-    () => () => {
-      if (!settled.current) {
-        undo.current?.revert()
+  useEffect(() => {
+    const entry = held.get(kind)
+
+    if (entry) {
+      entry.mounts += 1
+    }
+
+    return () => {
+      const left = held.get(kind)
+
+      if (!left) {
+        return
       }
-    },
-    []
-  )
+
+      left.mounts -= 1
+      // A remount mounts the new card in the same commit; wait past it before calling the card gone.
+      setTimeout(() => {
+        if (held.get(kind) === left && left.mounts === 0) {
+          held.delete(kind)
+
+          if (!left.settled) {
+            left.undo?.revert()
+          }
+        }
+      })
+    }
+  }, [kind])
 
   return {
     // Settled before sending: the answer can unmount the card before `send` returns.
     commit: send => {
-      if (!staged) {
+      const entry = held.get(kind)
+
+      if (!staged || !entry) {
         return
       }
 
-      settled.current = true
-      settled.current = undo.current ? undo.current.keep(() => send(staged.value)) : send(staged.value)
+      entry.settled = true
+      entry.settled = entry.undo ? entry.undo.keep(() => send(staged.value)) : send(staged.value)
 
-      // A failed send keeps the card, so its preview goes back on screen.
-      if (!settled.current && undo.current) {
+      // The sent value is the new truth. A failed send keeps the card, so its preview goes back on screen.
+      if (entry.settled) {
+        held.delete(kind)
+      } else if (entry.undo) {
         live.apply(staged.value, dark)
       }
     },
     stage: value => {
-      undo.current ??= live.snapshot()
+      const entry = held.get(kind) ?? { mounts: 1, settled: false, staged: null, undo: null }
+
+      held.set(kind, entry)
+      entry.undo ??= live.snapshot()
+      entry.staged = { value }
       live.apply(value, dark)
-      setStaged({ value })
+      setStaged(entry.staged)
     },
     staged
   }
