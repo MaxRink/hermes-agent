@@ -59,6 +59,24 @@ describe('first-run layout beat', () => {
     expect($layoutTree.get()).toEqual(mine)
   })
 
+  it('keeps the Advanced layout the user had when Basic is picked over the demo', () => {
+    skipIntro()
+    setInterfaceMode('advanced')
+    applyLayoutPreset('mine', group(['workspace']))
+    const mine = $layoutTree.get()
+
+    $introView.set('off')
+    openDemoLayout()
+    openIntro(false)
+    expect($layoutTree.get()).not.toEqual(mine)
+
+    expect(applyAppearance({ layout: 'sidebar-left' }).success).toBe(true)
+    expect($interfaceMode.get()).toBe('simple')
+
+    setInterfaceMode('advanced')
+    expect($layoutTree.get()).toEqual(mine)
+  })
+
   it('sizes the window normal on Skip setup', () => {
     skipIntro()
 
