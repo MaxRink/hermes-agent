@@ -274,6 +274,24 @@ def test_a_missed_first_launch_stays_due_and_keeps_the_trial(portal, monkeypatch
     assert welcome_trial.claim_blocker() == "a Nous identity exists"
 
 
+def test_a_claim_cut_off_before_its_marker_write_never_claims_twice(portal, monkeypatch):
+    as_local_desktop_backend(monkeypatch)
+    _relaunch()                                         # first boot: due, the trial reserved
+    mark = install_state.mark_machine_used
+
+    def die():
+        raise RuntimeError("the process died here")
+    monkeypatch.setattr(install_state, "mark_machine_used", die)  # the stamped guest is saved, then the crash
+    with pytest.raises(RuntimeError):
+        welcome_trial.claim_desktop_free_tier()
+    monkeypatch.setattr(install_state, "mark_machine_used", mark)
+    _relaunch()
+    anon_auth.clear_dead_guest("anon_credential_dead")   # the claimed guest is reaped later
+
+    assert welcome_trial.claim_desktop_free_tier() is None
+    assert portal.creates() == 1
+
+
 def test_one_due_answer_walks_the_provider_ladder_once(portal, monkeypatch):
     from hermes_cli import auth
 

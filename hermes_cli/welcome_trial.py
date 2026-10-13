@@ -91,6 +91,7 @@ def claim_desktop_free_tier(*, assume_fresh: bool = False, force: bool = False) 
     Returns the claimed state, or None when the trial is not available here. A failed mint raises
     the coded ``AuthError`` from :func:`anon_auth.ensure_portal_identity` (memoised with its cooldown;
     *force* is the user's own retry)."""
+    settle_interrupted_claim()
     if reason := claim_blocker(assume_fresh=assume_fresh):
         logger.debug("welcome trial not claimed: %s", reason)
         return None
@@ -105,6 +106,23 @@ def claim_desktop_free_tier(*, assume_fresh: bool = False, force: bool = False) 
     mark_machine_used()
     logger.info("Nous free tier: welcome trial claimed on this machine")
     return state
+
+
+def settle_interrupted_claim() -> bool:
+    """A claim cut off between its guest write and its marker write leaves the reservation behind.
+    The stamped guest is the claim, so the reservation goes: kept, it would let a second trial through
+    once that guest is reaped or deleted. Runs before every claim and at serve boot; True when it did."""
+    from hermes_cli.auth_nous import _read_shared_nous_state
+    from hermes_cli.install_state import mark_machine_used, trial_reserved
+
+    if not trial_reserved():
+        return False
+    stores = (anon_auth.current_nous_state(), _read_shared_nous_state())
+    if not any(anon_auth.is_guest_state(s) and s.get(anon_auth.WELCOME_CLAIM_FLAG) is True for s in stores):
+        return False
+    mark_machine_used()
+    logger.info("Nous free tier: an interrupted welcome-trial claim was settled")
+    return True
 
 
 def grandfather_existing_guest() -> bool:

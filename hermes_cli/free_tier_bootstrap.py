@@ -3,7 +3,8 @@
 ``hermes serve`` runs this once at boot on a daemon thread. It never creates an identity: the
 desktop's welcome-trial claim (``hermes_cli.welcome_trial``) and the first hosted connector action
 are the only creators. On the desktop's local backend it first records a fresh install's onboarding
-decision (``onboarding_run.latch_first_install``), then keeps the trial for a guest that already ran
+decision (``onboarding_run.latch_first_install``), settles a claim cut off before its marker write
+(``welcome_trial.settle_interrupted_claim``), then keeps the trial for a guest that already ran
 on the free model (``welcome_trial.grandfather_existing_guest``). Then it inventories
 credentials cheap-first, resolves which provider carries inference, records the answer in process
 memory, and tells every connected client with one ``setup.ready`` event. ``free_tier.status`` and
@@ -206,7 +207,8 @@ def run_bootstrap(*, announce: bool = True) -> SetupRecord:
     except Exception:  # the next boot tries again; onboarding.state still answers live
         logger.warning("onboarding: could not record the first-install decision", exc_info=True)
     try:
-        from hermes_cli.welcome_trial import grandfather_existing_guest
+        from hermes_cli.welcome_trial import grandfather_existing_guest, settle_interrupted_claim
+        settle_interrupted_claim()
         grandfather_existing_guest()
     except Exception:  # the record still says who carries inference without it
         logger.warning("free tier: could not check for an existing free-model guest", exc_info=True)
