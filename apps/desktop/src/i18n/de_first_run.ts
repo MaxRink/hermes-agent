@@ -35,6 +35,10 @@ export const deFirstRun: FirstRunCopy = {
     setUp: 'Einrichten',
     notNow: 'Nicht jetzt'
   },
+  intro: {
+    greeting: 'Hallo, ich bin Hermes.',
+    plan: 'Richten wir alles für Sie ein. Danach machen wir etwas Cooles.'
+  },
   rerun: {
     title: 'Onboarding erneut starten',
     description: 'Öffnet einen neuen Einrichtungs-Chat, der die ersten Schritte mit deinem aktuellen Modell durchgeht.',

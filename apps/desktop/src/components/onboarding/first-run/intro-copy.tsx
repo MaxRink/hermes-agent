@@ -5,39 +5,49 @@ import { useEffect, useState } from 'react'
 
 import { useSessionView } from '@/app/chat/session-view'
 import { useMediaQuery } from '@/hooks/use-media-query'
+import { useI18n } from '@/i18n'
 import { chatMessageText } from '@/lib/chat-messages'
 import { useStoreSelector } from '@/lib/use-session-slice'
 
 import { $introCopy, $introTurnSent } from './intro'
 
-// App-owned, English only. The backend's prelude writes the same words (GREETING in
-// agent/onboarding_text.py; keep the two equal) as the onboarding chat's first assistant row, which
-// replaces this copy once it lands.
-const LINES = ["Hi, I'm Hermes.", "Let's set things up for you. Then we'll get something cool done."] as const
-
 // The boot overlay (the `starting` screen) clears its text before it fades; typing starts under the fade.
 const START_MS = 660
-const LINE_1_MS = (LINES[0].length * 1000) / 26
 const LINE_GAP_MS = 300
-const LINE_2_MS = (LINES[1].length * 1000) / 48
 // Typing never runs past 2.5 s: a throttled frame snaps the rest in.
-const TYPED_MS = Math.min(LINE_1_MS + LINE_GAP_MS + LINE_2_MS, 2500)
+const MAX_TYPED_MS = 2500
 const HOLD_MS = 250
 const SPRING_MS = 530
 
-function typedAt(elapsed: number): readonly [string, string] {
-  if (elapsed >= TYPED_MS) {
-    return LINES
+type Lines = readonly [string, string]
+
+function timing([first, second]: Lines) {
+  const line1 = (first.length * 1000) / 26
+  const line2 = (second.length * 1000) / 48
+
+  return { line1, typed: Math.min(line1 + LINE_GAP_MS + line2, MAX_TYPED_MS), line2 }
+}
+
+function typedAt(lines: Lines, elapsed: number): Lines {
+  const { line1, line2, typed } = timing(lines)
+
+  if (elapsed >= typed) {
+    return lines
   }
 
-  const first = Math.floor((Math.min(elapsed, LINE_1_MS) / LINE_1_MS) * LINES[0].length)
-  const second = Math.floor((Math.max(0, elapsed - LINE_1_MS - LINE_GAP_MS) / LINE_2_MS) * LINES[1].length)
+  const first = Math.floor((Math.min(elapsed, line1) / line1) * lines[0].length)
+  const second = Math.floor((Math.max(0, elapsed - line1 - LINE_GAP_MS) / line2) * lines[1].length)
 
-  return [LINES[0].slice(0, first), LINES[1].slice(0, Math.min(second, LINES[1].length))]
+  return [lines[0].slice(0, first), lines[1].slice(0, Math.min(second, lines[1].length))]
 }
 
 /** Centred intro copy that springs up into the empty setup chat. Primary chat view only. */
 export function IntroCopy() {
+  // The backend's prelude writes the same words in the same locale (_GREETINGS in
+  // agent/onboarding_text.py) as the onboarding chat's first assistant row, which replaces this copy.
+  const { t } = useI18n()
+  const lines: Lines = [t.firstRun.intro.greeting, t.firstRun.intro.plan]
+  const typedMs = timing(lines).typed
   const stage = useStore($introCopy)
   const view = useSessionView()
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
@@ -60,7 +70,7 @@ export function IntroCopy() {
     }
 
     if (reducedMotion) {
-      setElapsed(TYPED_MS)
+      setElapsed(typedMs)
       setRisen(true)
       $introCopy.set('landed')
 
@@ -75,7 +85,7 @@ export function IntroCopy() {
       const now = Math.max(0, performance.now() - started)
       setElapsed(now)
 
-      if (now < TYPED_MS) {
+      if (now < typedMs) {
         frame = requestAnimationFrame(tick)
 
         return
@@ -93,7 +103,7 @@ export function IntroCopy() {
       cancelAnimationFrame(frame)
       window.clearTimeout(timer)
     }
-  }, [reducedMotion, stage])
+  }, [reducedMotion, stage, typedMs])
 
   useEffect(() => {
     if (stage === 'landed' && (landed || settledWithoutWords)) {
@@ -105,10 +115,10 @@ export function IntroCopy() {
     return null
   }
 
-  const [first, second] = typedAt(elapsed)
+  const [first, second] = typedAt(lines, elapsed)
 
   return (
-    <div aria-label={LINES.join(' ')} data-risen={risen ? '' : undefined} data-slot="intro-copy" role="status">
+    <div aria-label={lines.join(' ')} data-risen={risen ? '' : undefined} data-slot="intro-copy" role="status">
       <div aria-hidden="true" className="intro-copy-text">
         <p>{first}</p>
         <p className="intro-copy-second">{second}</p>

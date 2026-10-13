@@ -34,6 +34,10 @@ export const enFirstRun: FirstRunCopy = {
     setUp: 'Set it up',
     notNow: 'Not now'
   },
+  intro: {
+    greeting: 'Hi, I\'m Hermes.',
+    plan: 'Let\'s set things up for you. Then we\'ll get something cool done.'
+  },
   rerun: {
     title: 'Run onboarding again',
     description: 'Open a new setup chat that walks through the first-run steps with your current model.',

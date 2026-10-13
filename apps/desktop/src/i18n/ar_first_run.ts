@@ -34,6 +34,10 @@ export const arFirstRun: FirstRunCopy = {
     setUp: 'إعداده',
     notNow: 'ليس الآن'
   },
+  intro: {
+    greeting: 'مرحبًا، أنا Hermes.',
+    plan: 'لنجهّز كل شيء لك، ثم ننجز معًا شيئًا رائعًا.'
+  },
   rerun: {
     title: 'تشغيل الإعداد الأولي مرة أخرى',
     description: 'يفتح محادثة إعداد جديدة تمر بخطوات التشغيل الأول باستخدام نموذجك الحالي.',

@@ -35,6 +35,10 @@ export const frFirstRun: FirstRunCopy = {
     setUp: 'Le configurer',
     notNow: 'Pas maintenant'
   },
+  intro: {
+    greeting: 'Bonjour, je suis Hermes.',
+    plan: 'Configurons tout pour vous. Ensuite, nous ferons quelque chose de génial.'
+  },
   rerun: {
     title: 'Relancer l\'accueil',
     description: 'Ouvre un nouveau chat de configuration qui reprend les premières étapes avec votre modèle actuel.',

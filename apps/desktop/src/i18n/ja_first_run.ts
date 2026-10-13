@@ -35,6 +35,10 @@ export const jaFirstRun: FirstRunCopy = {
     setUp: 'セットアップする',
     notNow: '今はしない'
   },
+  intro: {
+    greeting: 'こんにちは、Hermes です。',
+    plan: 'まずはあなたに合わせて設定しましょう。そのあと、何かすごいものを作りましょう。'
+  },
   rerun: {
     title: 'オンボーディングをもう一度実行',
     description: '現在のモデルで初回セットアップの手順をたどる、新しいセットアップチャットを開きます。',

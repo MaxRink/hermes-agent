@@ -34,6 +34,10 @@ export const zhFirstRun: FirstRunCopy = {
     setUp: '设置',
     notNow: '暂不'
   },
+  intro: {
+    greeting: '你好，我是 Hermes。',
+    plan: '我们先帮你把一切设置好，然后一起做点很酷的事。'
+  },
   rerun: {
     title: '重新运行新手引导',
     description: '打开一个新的设置对话，用你当前的模型走一遍首次运行的步骤。',

@@ -35,6 +35,10 @@ export const esFirstRun: FirstRunCopy = {
     setUp: 'Configurarlo',
     notNow: 'Ahora no'
   },
+  intro: {
+    greeting: 'Hola, soy Hermes.',
+    plan: 'Vamos a dejarlo todo listo para ti. Luego haremos algo genial.'
+  },
   rerun: {
     title: 'Repetir la configuración inicial',
     description: 'Abre un nuevo chat de configuración que recorre los primeros pasos con tu modelo actual.',
