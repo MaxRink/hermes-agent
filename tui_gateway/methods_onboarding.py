@@ -85,16 +85,21 @@ def _(rid, params: dict) -> dict:
                     # The tours setting is the default profile's, whichever profile launched the backend.
                     home = _profile_home("default")
                     scope = {"profile_home": str(home) if home else None}
-                    if not params.get("rerun"):
-                        # Before the chat exists, so onboarding's own writes are not what the machine
-                        # check sees. A rerun never claims: it runs on the configured model.
-                        with _session_profile_runtime_scope(scope):
-                            claimed = claim_desktop_free_tier(assume_fresh=bool(params.get("assume_fresh")))
                     with _session_profile_runtime_scope(scope, hydrate_secrets=False):
                         facts = read_facts(facts_source=params.get("facts_source") or "local", locale=params.get("locale"))
                     stored = db.create_session(new_session_id(), "desktop")
                     # The record exists before the agent is built, so the build folds the onboarding toolset in.
                     start(db, stored, facts)
+                    if not params.get("rerun"):
+                        # After the record: onboarding.run is on disk before the claim makes this machine
+                        # read as used, so a crash in between still opens onboarding on the next launch.
+                        # A rerun never claims: it runs on the configured model.
+                        try:
+                            with _session_profile_runtime_scope(scope):
+                                claimed = claim_desktop_free_tier(assume_fresh=bool(params.get("assume_fresh")))
+                        except AuthError:
+                            _discard_unfinished_runs(db, [stored])  # a refused claim leaves no chat behind
+                            raise
                 else:
                     facts = Facts.from_stored(load(db, stored)["facts"])
                 run_id = load(db, stored).get("run_id") or ""
@@ -112,7 +117,7 @@ def _(rid, params: dict) -> dict:
                 # A chat with no messages never got its opening (a restart between start and the first turn).
                 opening = None if (db.get_session(stored) or {}).get("message_count") else opening_prompt(facts)
         except AuthError as e:
-            # The trial claim failed (portal down, rate limited): nothing was written, so the next
+            # The trial claim failed (portal down, rate limited): no guest and no chat, so the next
             # launch is still a first install and tries again.
             logger.info("onboarding.start: welcome trial not claimed: %s", e)
             return _err(rid, 5079, str(e))

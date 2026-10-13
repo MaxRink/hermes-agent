@@ -1,6 +1,6 @@
 """``onboarding.state`` / ``onboarding.start`` and the desktop's welcome trial: a new run on a first
-install claims it before the chat exists, a rerun never does, a failed claim writes nothing, and only
-the desktop's local backend opens onboarding by itself."""
+install claims it once its run record exists, a rerun never does, a failed claim leaves no guest and no
+chat, and only the desktop's local backend opens onboarding by itself."""
 
 from __future__ import annotations
 
@@ -73,6 +73,24 @@ def test_a_failed_claim_opens_nothing_and_the_next_launch_tries_again(portal, mo
     anon_auth.reset_mint_memo_for_tests()
     assert "result" in _call("onboarding.start")
     assert anon_auth.free_inference_active()
+
+
+def test_a_crash_right_after_the_claim_keeps_onboarding_due(portal, monkeypatch):
+    as_local_desktop_backend(monkeypatch)
+
+    mark = install_state.mark_machine_used
+
+    def die(*_args, **_kwargs):
+        raise RuntimeError("the process died here")
+    monkeypatch.setattr(install_state, "mark_machine_used", die)  # the guest is minted, then the crash
+
+    assert _call("onboarding.start")["error"]["code"] == 5078
+    monkeypatch.setattr(install_state, "mark_machine_used", mark)
+    install_state.probe.cache_clear()  # the next launch
+
+    state = _call("onboarding.state")["result"]
+    assert state["run"] is True and state["eligible"] is True
+    assert portal.creates() == 1
 
 
 def test_only_the_local_desktop_backend_opens_onboarding_by_itself(portal, monkeypatch):
