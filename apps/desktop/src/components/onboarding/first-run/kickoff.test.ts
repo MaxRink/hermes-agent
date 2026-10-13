@@ -26,7 +26,7 @@ const adopt = vi.fn(async (storedId: string) => {
 beforeEach(() => {
   Object.defineProperty(window, 'hermesDesktop', {
     configurable: true,
-    value: { chatOnboarding: { size }, guestOnboardingEnabled: true }
+    value: { chatOnboarding: { size } }
   })
   // SAFETY: factsSource reads only `mode`; a local connection skips the machine comparison.
   $connection.set({ mode: 'local' } as never)

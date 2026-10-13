@@ -86,6 +86,9 @@ $onboardingOnScreen.subscribe(onScreen => {
  *  computer. */
 const factsSource = (): 'local' | 'remote' => ($connection.get()?.mode === 'local' ? 'local' : 'remote')
 
+/** The unpackaged app's `--fresh-install` launch: the backend treats this machine as a first install. */
+const assumeFreshInstall = (): boolean => window.hermesDesktop?.assumeFreshInstall === true
+
 /** The first-run intro around a start (`components/onboarding/first-run/kickoff.ts`). */
 export interface OnboardingIntroHooks {
   /** Before `onboarding.start`: the boot overlay holds. `skip`: the user went on without setup while
@@ -134,7 +137,13 @@ export async function startOnboarding(
     // The request stays alive past the way out: its answer names the run the skip ends.
     const started = await request<OnboardingStartResult>(
       'onboarding.start',
-      { facts_source: factsSource(), fresh_launch: freshLaunch, locale: getRuntimeI18nLocale(), rerun },
+      {
+        facts_source: factsSource(),
+        fresh_launch: freshLaunch,
+        locale: getRuntimeI18nLocale(),
+        rerun,
+        assume_fresh: !rerun && assumeFreshInstall()
+      },
       intro ? NO_DEADLINE : undefined
     )
 
@@ -207,7 +216,11 @@ export function decideOnboarding(
 async function readAndStart(request: OnboardingRequest, resume: OnboardingResume, options?: StartOptions): Promise<void> {
   try {
     // One deadline for the due check: past it the app is released and a late answer opens nothing.
-    const state = await request<OnboardingRunStateResult>('onboarding.state', undefined, ONBOARDING_DECIDE_DEADLINE_MS)
+    const state = await request<OnboardingRunStateResult>(
+      'onboarding.state',
+      { assume_fresh: assumeFreshInstall() },
+      ONBOARDING_DECIDE_DEADLINE_MS
+    )
 
     if (state.run && state.eligible) {
       await startOnboarding(request, resume, { ...options, freshLaunch: true })

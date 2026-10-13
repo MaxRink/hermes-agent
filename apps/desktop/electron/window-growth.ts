@@ -17,7 +17,6 @@ const electronHost: WindowSizingHost = {
 }
 
 interface WindowSizingOptions {
-  enabled: boolean
   host?: WindowSizingHost
   mainWindow: () => BrowserWindow | null
 }
@@ -65,11 +64,11 @@ function sizedBounds(mode: WindowSizeMode, bounds: Rectangle, workArea: Rectangl
 // from Settings leaves an existing user's window where it was.
 const beforeOnboarding = new WeakMap<BrowserWindow, Rectangle>()
 
-export function registerWindowSizing({ enabled, host = electronHost, mainWindow }: WindowSizingOptions): void {
+export function registerWindowSizing({ host = electronHost, mainWindow }: WindowSizingOptions): void {
   host.onSizeRequest((event, mode) => {
     const win = mainWindow()
 
-    if (!enabled || !win || win.isDestroyed() || event.sender !== win.webContents) {
+    if (!win || win.isDestroyed() || event.sender !== win.webContents) {
       return
     }
 

@@ -1,3 +1,4 @@
+import type { OnboardingStartParams } from '@hermes/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { $onboardingPhase } from './onboarding-phase'
@@ -205,6 +206,35 @@ describe('onboarding run', () => {
 
     expect($onboardingPhase.get()).toBe('shown')
     expect($onboardingEnded.get()).toBeNull()
+  })
+
+  it('asks for a fresh-install run only on a --fresh-install launch, and never on a rerun', async () => {
+    const sent: (boolean | undefined)[] = []
+
+    const request = async <T,>(method: string, params?: OnboardingStartParams): Promise<T> => {
+      if (method === 'onboarding.start') {
+        sent.push(params?.assume_fresh)
+      }
+
+      // SAFETY: the fake answers onboarding.start with its contract result shape.
+      return { resumed: false, run_id: 'run-1', session_id: 'rt-1', stored_session_id: 'st-1' } as T
+    }
+
+    const launch = (assumeFreshInstall: boolean): void => {
+      Object.defineProperty(window, 'hermesDesktop', { configurable: true, value: { assumeFreshInstall } })
+    }
+
+    try {
+      launch(false)
+      await startOnboarding(request, resume, { ensureProfile })
+      launch(true)
+      await startOnboarding(request, resume, { ensureProfile })
+      await startOnboarding(request, resume, { ensureProfile, rerun: true })
+    } finally {
+      Object.defineProperty(window, 'hermesDesktop', { configurable: true, value: undefined })
+    }
+
+    expect(sent).toEqual([false, true, false])
   })
 
   it('keeps the run when the backend refuses the skip', async () => {

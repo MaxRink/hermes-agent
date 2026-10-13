@@ -83,7 +83,7 @@ describe('window sizing for the first-run intro', () => {
     const win = mainWindow(placed)
     const { host, send } = sizingHost()
     // SAFETY: registerWindowSizing reads only the members mainWindow() fakes.
-    registerWindowSizing({ enabled: true, host, mainWindow: () => win as never })
+    registerWindowSizing({ host, mainWindow: () => win as never })
     const size = (mode: WindowSizeMode) => send(win.webContents, mode)
 
     size('onboarding')

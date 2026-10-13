@@ -17,7 +17,6 @@ import {
   undismissTreePanes
 } from '@/components/pane-shell/tree/store'
 import { registry } from '@/contrib/registry'
-import { isOnboardingEnabled } from '@/lib/onboarding-enabled'
 import { useStoreSelector } from '@/lib/use-session-slice'
 import { $interfaceMode, type InterfaceMode, modeLayout, setInterfaceMode } from '@/store/interface-mode'
 import { setSidebarOpen } from '@/store/layout'
@@ -55,7 +54,7 @@ export function openDemoLayout(): void {
 }
 
 function startChatOnboardingSolo(): void {
-  if (!isOnboardingEnabled() || $chatOnboardingSolo.get()) {
+  if ($chatOnboardingSolo.get()) {
     return
   }
 

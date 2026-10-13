@@ -20,7 +20,7 @@ beforeAll(() => {
 beforeEach(() => {
   Object.defineProperty(window, 'hermesDesktop', {
     configurable: true,
-    value: { chatOnboarding: { size }, guestOnboardingEnabled: true }
+    value: { chatOnboarding: { size } }
   })
   $introView.set('off')
   openDemoLayout()

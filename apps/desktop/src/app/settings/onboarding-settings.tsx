@@ -4,18 +4,13 @@ import { useGatewayRequest } from '@/app/gateway/hooks/use-gateway-request'
 import { firstRunIntro } from '@/components/onboarding/first-run/kickoff'
 import { Button } from '@/components/ui/button'
 import { useI18n } from '@/i18n'
-import { isOnboardingEnabled } from '@/lib/onboarding-enabled'
 import { notifyError } from '@/store/notifications'
 import { $onboardingChatOpener, startOnboarding } from '@/store/onboarding-run'
 
 import { ListRow } from './primitives'
 
-/** Advanced → Run onboarding again. Only builds with the guided first run show it. */
+/** Advanced → Run onboarding again. */
 export function OnboardingSettings() {
-  return isOnboardingEnabled() ? <RerunOnboardingRow /> : null
-}
-
-function RerunOnboardingRow() {
   const copy = useI18n().t.firstRun.rerun
   const { requestGateway } = useGatewayRequest()
   const [starting, setStarting] = useState(false)
