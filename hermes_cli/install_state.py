@@ -1,7 +1,7 @@
-"""Has someone already used Hermes on this machine?
+"""Has this OS user already used Hermes on this computer?
 
-The desktop's welcome trial goes only to a first install, so ``onboarding.start`` asks this before it
-claims one. The answer is about the machine and the OS user, not the active profile: it looks at
+The desktop's welcome trial goes only to a first install, once per OS user, so ``onboarding.start``
+asks this before it claims one. The answer is about the OS user, not the active profile: it looks at
 every Hermes root the machine names (default roots, channel and package roots, the roots gateway
 services and the ``hermes`` launcher point at) and at a marker file no Hermes setting can move.
 

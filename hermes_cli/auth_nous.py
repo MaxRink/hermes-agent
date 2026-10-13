@@ -1072,7 +1072,7 @@ def resolve_nous_runtime_credentials(
     """Resolve Nous inference credentials for runtime use (refreshing under the auth-store lock).
 
     A guest whose ``anon_`` credential NAS no longer knows (reaped or claimed) is retired and never
-    replaced here: the welcome trial is claimed once per machine, so that user goes on to sign-in or
+    replaced here: the welcome trial is claimed once per OS user, so that user goes on to sign-in or
     provider setup.
     """
     from hermes_cli.anon_auth import AnonCredentialDead, clear_dead_guest

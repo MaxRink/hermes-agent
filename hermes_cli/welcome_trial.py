@@ -1,9 +1,10 @@
-"""The desktop's welcome trial: free inference on ``nous/welcome`` for a first install.
+"""The desktop's welcome trial: free inference on ``nous/welcome`` for a first install, once per OS user.
 
-Only the backend the desktop spawned on this machine can claim it, only when this machine has never
-used Hermes (``install_state``), and only with no provider and no Nous identity yet. The claim mints a
-guest stamped with ``WELCOME_CLAIM_FLAG`` in the mint's own write and marks the machine, so the trial
-is never claimed twice here. A claim that is lost later (the guest is reaped, ``auth.json`` is
+Only the backend the desktop spawned on this machine can claim it, only when this OS user has never
+used Hermes here (``install_state``), and only with no provider and no Nous identity yet. The claim
+mints a guest stamped with ``WELCOME_CLAIM_FLAG`` in the mint's own write and writes the OS user's
+marker, so the trial is never claimed twice for that user. Another OS account on the same computer is
+a separate first install. A claim that is lost later (the guest is reaped, ``auth.json`` is
 deleted, the user signs in) is never made again: that user lands on provider setup and sign-in like
 anyone else.
 

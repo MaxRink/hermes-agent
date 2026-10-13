@@ -213,7 +213,7 @@ class TestTokenAcquisitionSeam:
         assert "quarantine" not in json.dumps(_load_auth_store())
 
     def test_dead_credential_is_retired_and_never_replaced(self, portal, monkeypatch):
-        """The trial is claimed once per machine: a guest NAS no longer knows is cleared and the
+        """The trial is claimed once per OS user: a guest NAS no longer knows is cleared and the
         error surfaces; inference never mints a replacement."""
         first = claimed_trial(monkeypatch)
         portal.dead_tokens.add(first["anon_token"])
