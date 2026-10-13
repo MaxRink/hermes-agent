@@ -177,6 +177,19 @@ _DESKTOP_MCP_DISCOVERY_DELAY_S = 1.0
 
 
 @asynccontextmanager
+def _probe_install_before_state_db() -> None:
+    from hermes_cli.anon_auth import on_local_desktop_backend
+
+    if not on_local_desktop_backend():
+        return
+    try:
+        from hermes_cli.install_state import probe
+
+        probe()
+    except Exception:  # onboarding.state probes again on demand
+        _log.warning("first-install check at boot failed", exc_info=True)
+
+
 async def _lifespan(app: FastAPI):
     app.state.event_channels = {}  # dict[str, set]
     app.state.event_lock = asyncio.Lock()
@@ -196,6 +209,10 @@ async def _lifespan(app: FastAPI):
     # connection closed from the main thread mid-probe (pytest's leaked-DB
     # sweep) and segfaulted the interpreter. The worker is time-bounded by
     # SessionDB's lock patience, so the join cannot hang shutdown.
+    # The first-install check reads the default root's state.db: on the desktop's own backend it runs
+    # before this process starts creating or healing that database, and its answer is kept.
+    _probe_install_before_state_db()
+
     eager_reconcile_thread = threading.Thread(
         target=_eager_reconcile_own_session_db,
         name="statedb-eager-reconcile",
