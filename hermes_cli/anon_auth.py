@@ -33,6 +33,7 @@ import os
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone, UTC
+from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 from agent.retry_utils import parse_retry_after_seconds
@@ -980,24 +981,46 @@ def mark_guest_notice_shown() -> bool:
 def set_guest_flag(flag: str) -> Optional[dict[str, Any]]:
     """Set *flag* on the guest's ``providers.nous`` state in whichever store holds it, and return the
     updated state; None when there is no guest."""
-    from hermes_cli.auth import (
-        _auth_file_path, _load_auth_store, _provider_state_transaction, _same_path, _save_auth_store,
-        _store_section)
+    from hermes_cli.auth import _provider_state_transaction
     with _provider_state_transaction("nous") as (auth_store, state, source_path):
         if not is_guest_state(state) or source_path is None:
             return None
         if state.get(flag):
             return state
-        state = dict(state)
-        state[flag] = True
-        if _same_path(source_path, _auth_file_path()):
-            _store_section(auth_store, "providers")["nous"] = state
-            _save_auth_store(auth_store)
-        else:
-            source_store = _load_auth_store(source_path)
-            _store_section(source_store, "providers")["nous"] = state
-            _save_auth_store(source_store, target_path=source_path)
+        state = {**state, flag: True}
+        _save_guest_state(auth_store, state, source_path)
     return state
+
+
+def stamp_legacy_guest_claim() -> Optional[dict[str, Any]]:
+    """Grandfathering's write (``welcome_trial.grandfather_existing_guest``): stamp the welcome claim on
+    a guest minted before the key existed and publish it to the shared store, in one transaction under
+    the auth-then-shared locks. Nothing is written (None) unless, inside the locks, the guest still has
+    no key and the shared store is empty or holds that same guest: a sign-in another profile made is
+    never overwritten, whenever it landed."""
+    from hermes_cli.auth import _provider_state_transaction
+    from hermes_cli.auth_nous import _nous_shared_store_lock, _read_shared_nous_state, _write_shared_nous_state
+    with _provider_state_transaction("nous") as (auth_store, state, source_path), _nous_shared_store_lock():
+        shared = _read_shared_nous_state()
+        if (not is_guest_state(state) or source_path is None or WELCOME_CLAIM_FLAG in state
+                or (shared and _shared_identity_key(shared) != _shared_identity_key(state))):
+            return None
+        state = {**state, WELCOME_CLAIM_FLAG: True}
+        _save_guest_state(auth_store, state, source_path)
+        _write_shared_nous_state(state)
+    return state
+
+
+def _save_guest_state(auth_store: dict[str, Any], state: dict[str, Any], source_path: Path) -> None:
+    """Write the guest's ``providers.nous`` back to the store it was read from (the caller holds its lock)."""
+    from hermes_cli.auth import _auth_file_path, _load_auth_store, _same_path, _save_auth_store, _store_section
+    if _same_path(source_path, _auth_file_path()):
+        _store_section(auth_store, "providers")["nous"] = state
+        _save_auth_store(auth_store)
+    else:
+        source_store = _load_auth_store(source_path)
+        _store_section(source_store, "providers")["nous"] = state
+        _save_auth_store(source_store, target_path=source_path)
 
 
 # --- ``hermes auth upgrade``: sign the guest into a real Nous account, keeping its connectors ---------

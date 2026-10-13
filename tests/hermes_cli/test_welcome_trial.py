@@ -111,6 +111,22 @@ def test_a_guest_that_chatted_on_the_free_model_keeps_it(portal, monkeypatch, mo
     assert anon_auth.free_inference_active() is kept
 
 
+def test_grandfathering_never_overwrites_a_sign_in_from_another_profile(portal, monkeypatch):
+    from hermes_cli.auth_nous import _read_shared_nous_state, _write_shared_nous_state
+    from hermes_constants import get_hermes_home
+    from tests.hermes_cli.anon_portal import PORTAL
+
+    as_local_desktop_backend(monkeypatch)
+    _legacy_guest()                                    # this profile still holds the old guest
+    _chat(get_hermes_home() / "state.db", anon_auth.GUEST_MODEL)
+    _write_shared_nous_state({"auth_method": "oauth_device_code", "portal_base_url": PORTAL,
+                              "access_token": "at-signed-in", "refresh_token": "rt-signed-in"})
+
+    assert welcome_trial.grandfather_existing_guest() is False
+    assert _read_shared_nous_state()["refresh_token"] == "rt-signed-in"
+    assert anon_auth.WELCOME_CLAIM_FLAG not in anon_auth.current_nous_state()
+
+
 def test_a_lost_claim_is_not_replaced(portal, monkeypatch):
     claimed_trial(monkeypatch)
     anon_auth.clear_dead_guest("anon_credential_dead")

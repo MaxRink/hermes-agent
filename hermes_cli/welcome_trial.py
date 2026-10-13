@@ -143,11 +143,10 @@ def grandfather_existing_guest() -> bool:
     homes = dict.fromkeys((get_hermes_home(), get_default_hermes_root()))
     if not any(_chatted_on_welcome(home / "state.db") for home in homes):
         return False
-    from hermes_cli.auth_nous import _write_shared_nous_state
     from hermes_cli.install_state import mark_machine_used
 
-    if (stamped := anon_auth.set_guest_flag(anon_auth.WELCOME_CLAIM_FLAG)) is not None:
-        _write_shared_nous_state(stamped)
+    if anon_auth.stamp_legacy_guest_claim() is None:  # re-checked under the locks, against shared auth
+        return False
     mark_machine_used()
     logger.info("Nous free tier: existing free-model guest kept its trial")
     return True
