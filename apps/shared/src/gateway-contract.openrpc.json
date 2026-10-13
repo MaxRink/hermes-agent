@@ -20649,11 +20649,16 @@
       },
       "OnboardingStartParams": {
         "additionalProperties": false,
-        "description": "``rerun``: start a new onboarding chat even when one is in progress (Settings, Run onboarding\nagain). ``facts_source``: whether the backend runs on the user's own computer. ``locale``: the\ndesktop's UI language, preferred over the backend OS locale.",
+        "description": "``rerun``: start a new onboarding chat even when one is in progress (Settings, Run onboarding\nagain). ``fresh_launch``: the app's once-per-launch start; a run the app was closed on does not\ncount, so its chat is deleted and the run starts over. ``facts_source``: whether the backend runs\non the user's own computer. ``locale``: the desktop's UI language, preferred over the backend OS\nlocale.",
         "properties": {
           "rerun": {
             "default": false,
             "title": "Rerun",
+            "type": "boolean"
+          },
+          "fresh_launch": {
+            "default": false,
+            "title": "Fresh Launch",
             "type": "boolean"
           },
           "facts_source": {

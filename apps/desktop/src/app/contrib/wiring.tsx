@@ -54,7 +54,12 @@ import { $interfaceMode, shownInMode } from '@/store/interface-mode'
 import { $pinnedSessionIds, pinSession, restoreWorktree, unpinSession } from '@/store/layout'
 import { notifyError } from '@/store/notifications'
 import { markOnboardingDecided } from '@/store/onboarding-presence'
-import { $onboardingChatOpener, decideOnboarding } from '@/store/onboarding-run'
+import {
+  $onboardingChatOpener,
+  decideOnboarding,
+  type OnboardingRequest,
+  type OnboardingResume
+} from '@/store/onboarding-run'
 import { $poolLimitsSettingsRequest } from '@/store/pool-limits'
 import { $previewTarget } from '@/store/preview'
 import {
@@ -213,6 +218,29 @@ function useRouteRequestNavigation(navigate: ReturnType<typeof useNavigate>): vo
     routeRequestSeenRef.current = routeRequest.seq
     navigate(routeRequest.path)
   }, [navigate, routeRequest])
+}
+
+// The main window asks the backend whether first-run onboarding is due and opens it with main's
+// intro around it; every other window never runs it, so its first-run surfaces are free at once.
+// Settings' Run onboarding again opens its chat through the same opener.
+function useFirstRunOnboarding(request: OnboardingRequest, open: OnboardingResume, gatewayOpen: boolean): void {
+  useEffect(() => {
+    if (!isMainWindow()) {
+      markOnboardingDecided()
+    } else if (gatewayOpen) {
+      void decideOnboarding(request, open, { intro: firstRunIntro() })
+    }
+  }, [gatewayOpen, open, request])
+
+  useEffect(() => {
+    if (!isMainWindow()) {
+      return
+    }
+
+    $onboardingChatOpener.set(open)
+
+    return () => $onboardingChatOpener.set(null)
+  }, [open])
 }
 
 // Recovery actions raised by toast buttons (Restart Hermes, Open Billing, pool
@@ -624,26 +652,7 @@ export function ContribWiring({ children }: { children: ReactNode }) {
     [navigate, resumeSession]
   )
 
-  // The main window asks the backend whether first-run onboarding is due and opens it with main's
-  // intro around it; every other window never runs it, so its first-run surfaces are free at once.
-  useEffect(() => {
-    if (!isMainWindow()) {
-      markOnboardingDecided()
-    } else if (gatewayState === 'open') {
-      void decideOnboarding(requestGateway, adoptSessionRoute, { intro: firstRunIntro() })
-    }
-  }, [adoptSessionRoute, gatewayState, requestGateway])
-
-  // Settings' Run onboarding again opens its chat the way the launch does.
-  useEffect(() => {
-    if (!isMainWindow()) {
-      return
-    }
-
-    $onboardingChatOpener.set(adoptSessionRoute)
-
-    return () => $onboardingChatOpener.set(null)
-  }, [adoptSessionRoute])
+  useFirstRunOnboarding(requestGateway, adoptSessionRoute, gatewayState === 'open')
 
   // "New project" DRAG completion: the dialog created a project that was
   // dropped onto a chat zone (tab-strip slot / pane edge / pane center). Open

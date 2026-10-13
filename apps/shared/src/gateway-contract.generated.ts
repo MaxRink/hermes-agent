@@ -2214,9 +2214,10 @@ export interface OnboardingSetRunParams {
   run: boolean
   mark_profile_offered?: boolean
 }
-/** ``rerun``: start a new onboarding chat even when one is in progress (Settings, Run onboarding again). ``facts_source``: whether the backend runs on the user's own computer. ``locale``: the desktop's UI language, preferred over the backend OS locale. */
+/** ``rerun``: start a new onboarding chat even when one is in progress (Settings, Run onboarding again). ``fresh_launch``: the app's once-per-launch start; a run the app was closed on does not count, so its chat is deleted and the run starts over. ``facts_source``: whether the backend runs on the user's own computer. ``locale``: the desktop's UI language, preferred over the backend OS locale. */
 export interface OnboardingStartParams {
   rerun?: boolean
+  fresh_launch?: boolean
   facts_source?: OnboardingFactsSource
   locale?: string | null
 }

@@ -101,15 +101,18 @@ export interface OnboardingIntroHooks {
 interface StartOptions {
   /** Points the window's gateway at the profile onboarding runs in (`store/profile.ts::ensureGatewayProfile`). */
   ensureProfile?: (profile: string) => Promise<void>
+  /** The launch's start: a run the app was closed on does not count, so the backend deletes its chat
+   *  and starts over (`decideOnboarding` only). */
+  freshLaunch?: boolean
   intro?: OnboardingIntroHooks
   rerun?: boolean
 }
 
-/** Open the onboarding chat (a new one for a rerun, else the run in progress or a new one). */
+/** Open the onboarding chat (a new one for a rerun or a launch, else the run in progress or a new one). */
 export async function startOnboarding(
   request: OnboardingRequest,
   resume: OnboardingResume,
-  { ensureProfile = ensureGatewayProfile, intro, rerun = false }: StartOptions = {}
+  { ensureProfile = ensureGatewayProfile, freshLaunch = false, intro, rerun = false }: StartOptions = {}
 ): Promise<boolean> {
   // A rerun withdraws the old run's card; its skipped_all must not match this window's session.
   $onboardingSession.set(null)
@@ -131,7 +134,7 @@ export async function startOnboarding(
     // The request stays alive past the way out: its answer names the run the skip ends.
     const started = await request<OnboardingStartResult>(
       'onboarding.start',
-      { facts_source: factsSource(), locale: getRuntimeI18nLocale(), rerun },
+      { facts_source: factsSource(), fresh_launch: freshLaunch, locale: getRuntimeI18nLocale(), rerun },
       intro ? NO_DEADLINE : undefined
     )
 
@@ -187,7 +190,8 @@ let decision: null | Promise<void> = null
 
 /**
  * The main window's boot check, once per launch: open onboarding when the backend says it is due on
- * this install and the free tier can drive it. First-run surfaces wait until this has answered; the
+ * this install and the free tier can drive it. The launch starts the run over (`freshLaunch`); a
+ * reconnect later in the launch only re-reads it (`watchRunEnd`). First-run surfaces wait until this has answered; the
  * presence surface is set before the answer is published, so they never see a clear moment in between.
  */
 export function decideOnboarding(
@@ -206,7 +210,7 @@ async function readAndStart(request: OnboardingRequest, resume: OnboardingResume
     const state = await request<OnboardingRunStateResult>('onboarding.state', undefined, ONBOARDING_DECIDE_DEADLINE_MS)
 
     if (state.run && state.eligible) {
-      await startOnboarding(request, resume, options)
+      await startOnboarding(request, resume, { ...options, freshLaunch: true })
     }
   } catch (error) {
     console.warn('[onboarding] state could not be read', error)

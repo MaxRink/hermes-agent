@@ -13,7 +13,7 @@ import {
 } from './onboarding-run'
 import { isOnboardingChat } from './onboarding-session'
 import { $activeGatewayProfile, $freshSessionRequest, $newChatProfile } from './profile'
-import { $connection, $selectedStoredSessionId } from './session'
+import { $connection, $gatewayState, $selectedStoredSessionId } from './session'
 import { $sessionTiles } from './session-states'
 
 const ensureProfile = async (): Promise<void> => undefined
@@ -24,17 +24,22 @@ const resume = vi.fn(async (storedId: string) => $selectedStoredSessionId.set(st
 // `runId`: the run onboarding.state reports open; null once something ended it.
 function backend(state: { eligible: boolean; run: boolean }, runId: null | string = 'run-1') {
   const calls: string[] = []
+  const starts: unknown[] = []
   const started = { resumed: false, run_id: 'run-1', session_id: 'rt-1', stored_session_id: 'st-1' }
   const read = { ...state, run_id: runId, session_id: runId && 'st-1' }
 
-  const request = async <T,>(method: string): Promise<T> => {
+  const request = async <T,>(method: string, params?: unknown): Promise<T> => {
     calls.push(method)
+
+    if (method === 'onboarding.start') {
+      starts.push(params)
+    }
 
     // SAFETY: the fake answers onboarding.state and onboarding.start with their contract result shapes.
     return (method === 'onboarding.state' ? read : started) as T
   }
 
-  return { calls, request }
+  return { calls, request, starts }
 }
 
 beforeEach(() => {
@@ -50,16 +55,33 @@ describe('onboarding run', () => {
   it('opens the onboarding chat when due and never shows a clear moment before it', async () => {
     const clear: boolean[] = []
     const stop = $onboardingSurfaceClear.subscribe(value => clear.push(value))
-    const { calls, request } = backend({ eligible: true, run: true })
+    const { calls, request, starts } = backend({ eligible: true, run: true })
 
     await decideOnboarding(request, resume, { ensureProfile })
     stop()
 
     // The last read checks for an end sent while the chat was opening.
     expect(calls).toEqual(['onboarding.state', 'onboarding.start', 'onboarding.state'])
+    // A new launch: a run the app was closed on does not count, so the backend starts over.
+    expect(starts).toEqual([expect.objectContaining({ fresh_launch: true })])
     expect(resume).toHaveBeenCalledWith('st-1', true)
     expect($onboardingDecided.get()).toBe(true)
     expect(clear).not.toContain(true)
+  })
+
+  it('keeps the run on a reconnect in the same launch: it is re-read, never started again', async () => {
+    const { calls, request, starts } = backend({ eligible: true, run: true })
+    await startOnboarding(request, resume, { ensureProfile })
+    calls.length = 0
+
+    $gatewayState.set('closed')
+    $gatewayState.set('open')
+    // The wiring effect runs the launch decision again on every open socket; it answered once already.
+    await decideOnboarding(request, resume, { ensureProfile })
+
+    await vi.waitFor(() => expect(calls).toEqual(['onboarding.state']))
+    expect(starts).toEqual([expect.not.objectContaining({ fresh_launch: true })])
+    expect($onboardingPhase.get()).toBe('shown')
   })
 
   it('ends once when the backend reports the run done, and frees the first-run surfaces', async () => {

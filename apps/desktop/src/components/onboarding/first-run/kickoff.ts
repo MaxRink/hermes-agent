@@ -10,7 +10,7 @@ import { $sessionStates } from '@/store/session-states'
 import { $chatOnboardingThreadIds, openDemoLayout } from './assembly'
 import { $introTurnSent, failIntro, leaveIntro, openIntro, startIntro } from './intro'
 
-// The opening turn writes the scripted greeting; a chat that already shows it (a relaunch) skips the copy.
+// The opening turn writes the scripted greeting; a chat that already shows it (a resumed run) skips the copy.
 function hasAssistantWords(runtimeId: null | string): boolean {
   const messages = runtimeId ? ($sessionStates.get()[runtimeId]?.messages ?? []) : []
 
@@ -21,7 +21,8 @@ function hasAssistantWords(runtimeId: null | string): boolean {
  * Main's first-run start around `onboarding.start`: the boot overlay holds, the window takes the demo
  * layout once the start answers, and the intro opens once the returned chat is the one on screen.
  * `onboarding.start` has no deadline: past the boot budget the starting screen offers a way out, which
- * counts as Skip setup. A resumed run (a relaunch mid-run) reopens as a normal chat at normal size.
+ * counts as Skip setup. A resumed run (a start that found the run in progress) reopens as a normal chat
+ * at normal size; the launch and a rerun always start a new one.
  */
 export function firstRunIntro(): OnboardingIntroHooks {
   let offerExit: ReturnType<typeof setTimeout> | undefined

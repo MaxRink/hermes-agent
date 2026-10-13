@@ -85,7 +85,8 @@ def _close_install_flag() -> None:
 
 def start(db, session_id: str, facts: Facts) -> dict:
     """Write a fresh run record (the row must exist) and mark the install as mid-onboarding, so a
-    crash before the end reopens this chat on the next launch."""
+    crash or a quit before the end runs onboarding again on the next launch (which starts over:
+    ``onboarding.start`` with ``fresh_launch``)."""
     from hermes_cli.onboarding_run import set_run
 
     record = new_record(facts, now=time.time(), run_id=uuid.uuid4().hex)

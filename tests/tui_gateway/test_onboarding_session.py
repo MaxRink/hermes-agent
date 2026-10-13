@@ -68,7 +68,8 @@ def test_start_creates_one_onboarding_chat_and_plays_the_opening_once(client):
     assert "first-run onboarding" in submitted["text"] and "setup_beat" in submitted["text"]
     assert _call("onboarding.state")["result"]["session_id"] == stored
 
-    # A relaunch reopens the same chat without a second opening; rerun starts a new one.
+    # A start without fresh_launch (a second window, a reconnect) reopens the same chat without a
+    # second opening; rerun starts a new one.
     again = _call("onboarding.start")["result"]
     assert again["stored_session_id"] == stored and again["resumed"] is True and len(client) == 3
     assert _call("onboarding.start", {"rerun": True})["result"]["stored_session_id"] != stored
