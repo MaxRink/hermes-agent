@@ -36,6 +36,9 @@ export type OnboardingRequest = <T = unknown>(
   signal?: AbortSignal
 ) => Promise<T>
 
+// The generated param interfaces carry no index signature; the requester's own param type supplies it.
+type RequestParams = NonNullable<Parameters<OnboardingRequest>[1]>
+
 // A cold first boot answers onboarding.start late; the intro's way-out offer bounds the wait instead.
 // A start with no intro (Settings' Run again) has no way out on screen, so it keeps the request's default deadline.
 const NO_DEADLINE = 0
@@ -137,7 +140,7 @@ export async function startOnboarding(
   try {
     await ensureProfile(ONBOARDING_PROFILE)
 
-    const params: OnboardingStartParams = {
+    const params: OnboardingStartParams & RequestParams = {
       facts_source: factsSource(),
       fresh_launch: freshLaunch,
       locale: getRuntimeI18nLocale(),
@@ -219,7 +222,7 @@ export function decideOnboarding(
 
 async function readAndStart(request: OnboardingRequest, resume: OnboardingResume, options?: StartOptions): Promise<void> {
   try {
-    const params: OnboardingStateParams = {}
+    const params: OnboardingStateParams & RequestParams = {}
 
     if (assumeFreshInstall()) {
       params.assume_fresh = true
