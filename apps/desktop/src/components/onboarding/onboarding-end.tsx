@@ -20,7 +20,7 @@ import {
   LOCAL_MODEL_OFFERED_KEY,
   LOCAL_MODEL_PENDING_KEY
 } from '@/store/local-model-offer'
-import { readLocalSetupEligibility } from '@/store/local-setup-offer'
+import { readConnectedLocalSetupEligibility, readLocalSetupEligibility } from '@/store/local-setup-offer'
 import { $onboardingSettleFrom } from '@/store/onboarding-run'
 import { requestRoute } from '@/store/recovery-requests'
 import type { LocalCatalogModel } from '@/types/hermes'
@@ -53,8 +53,8 @@ export function OnboardingEnd() {
 
     $localModelOfferPending.set(true)
     // A machine that cannot run a local model (or cannot be read) gets no offer, so the sign-in offer
-    // stops waiting.
-    void readLocalSetupEligibility().then(
+    // stops waiting. Before the connection is up nothing is known yet, so it keeps waiting until it is.
+    void readConnectedLocalSetupEligibility().then(
       ({ fit }) => !fit && $localModelOfferPending.set(false),
       () => $localModelOfferPending.set(false)
     )
