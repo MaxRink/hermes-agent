@@ -104,18 +104,15 @@ def _active_run() -> dict:
         return {"session_id": session_id, "run_id": (load(db, session_id) or {}).get("run_id") if session_id else None}
 
 
-def _claim_after_record(db, stored: str, scope: dict, *, assume_fresh: bool):
-    """Claim the welcome trial for a run whose record (and ``onboarding.run: true``) is already on disk,
-    so a crash after the claim makes this machine read as used still opens onboarding next launch. A
-    refused claim deletes the run it was for and re-raises (error 5079): no guest and no chat."""
-    from hermes_cli.auth_constants import AuthError
+def _claim_before_run(scope: dict, *, assume_fresh: bool):
+    """Claim the welcome trial with ``onboarding.run: true`` already on disk, so a crash after the claim
+    makes this machine read as used still opens onboarding next launch. The run's chat comes after:
+    a refused claim (error 5079) leaves no guest and no chat, and the install still due."""
+    from hermes_cli.onboarding_run import set_run
     from hermes_cli.welcome_trial import claim_desktop_free_tier
-    try:
-        with _session_profile_runtime_scope(scope):
-            return claim_desktop_free_tier(assume_fresh=assume_fresh)
-    except AuthError:
-        _discard_unfinished_runs(db, [stored])
-        raise
+    set_run(True)
+    with _session_profile_runtime_scope(scope):
+        return claim_desktop_free_tier(assume_fresh=assume_fresh)
 
 
 @method("onboarding.start")
@@ -145,11 +142,11 @@ def _(rid, params: dict) -> dict:
                     scope = {"profile_home": str(home) if home else None}
                     with _session_profile_runtime_scope(scope, hydrate_secrets=False):
                         facts = read_facts(facts_source=params.get("facts_source") or "local", locale=params.get("locale"))
+                    if not params.get("rerun"):  # a rerun never claims: it runs on the configured model
+                        claimed = _claim_before_run(scope, assume_fresh=bool(params.get("assume_fresh")))
                     stored = db.create_session(new_session_id(), "desktop")
                     # The record exists before the agent is built, so the build folds the onboarding toolset in.
                     start(db, stored, facts)
-                    if not params.get("rerun"):  # a rerun never claims: it runs on the configured model
-                        claimed = _claim_after_record(db, stored, scope, assume_fresh=bool(params.get("assume_fresh")))
                 else:
                     facts = Facts.from_stored(load(db, stored)["facts"])
                 run_id = load(db, stored).get("run_id") or ""

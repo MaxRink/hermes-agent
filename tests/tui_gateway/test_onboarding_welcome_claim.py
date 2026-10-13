@@ -62,17 +62,22 @@ def test_a_rerun_on_a_first_install_never_claims(portal, monkeypatch):
 
 
 def test_a_failed_claim_opens_nothing_and_the_next_launch_tries_again(portal, monkeypatch):
+    from hermes_cli import free_tier_bootstrap
+
     as_local_desktop_backend(monkeypatch)
+    free_tier_bootstrap.run_bootstrap(announce=False)  # the first boot latches the install as due
     portal.create_response = httpx.Response(503, json={"error": "unavailable"})
 
-    failed = _call("onboarding.start")
+    failed = _call("onboarding.start", {"fresh_launch": True})
 
     assert failed["error"]["code"] == 5079
     assert _call("onboarding.state")["result"]["session_id"] is None
-    assert install_state.probe().fresh
     portal.create_response = None
     anon_auth.reset_mint_memo_for_tests()
-    assert "result" in _call("onboarding.start")
+    install_state.probe.cache_clear()  # the next launch asks first, then starts
+    state = _call("onboarding.state")["result"]
+    assert (state["run"], state["eligible"]) == (True, True)
+    assert "result" in _call("onboarding.start", {"fresh_launch": True})
     assert anon_auth.free_inference_active()
 
 
