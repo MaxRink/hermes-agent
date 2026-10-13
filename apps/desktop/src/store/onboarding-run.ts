@@ -11,7 +11,9 @@
 import type {
   OnboardingEndedPayload,
   OnboardingRunStateResult,
-  OnboardingStartResult
+  OnboardingStartParams,
+  OnboardingStartResult,
+  OnboardingStateParams
 } from '@hermes/shared'
 import { atom, computed } from 'nanostores'
 
@@ -86,7 +88,8 @@ $onboardingOnScreen.subscribe(onScreen => {
  *  computer. */
 const factsSource = (): 'local' | 'remote' => ($connection.get()?.mode === 'local' ? 'local' : 'remote')
 
-/** The unpackaged app's `--fresh-install` launch: the backend treats this machine as a first install. */
+/** The unpackaged app's `--fresh-install` launch: the backend treats this machine as a first install.
+ *  Only then is `assume_fresh` sent; packaged launches and Settings reruns never carry the field. */
 const assumeFreshInstall = (): boolean => window.hermesDesktop?.assumeFreshInstall === true
 
 /** The first-run intro around a start (`components/onboarding/first-run/kickoff.ts`). */
@@ -134,18 +137,19 @@ export async function startOnboarding(
   try {
     await ensureProfile(ONBOARDING_PROFILE)
 
+    const params: OnboardingStartParams = {
+      facts_source: factsSource(),
+      fresh_launch: freshLaunch,
+      locale: getRuntimeI18nLocale(),
+      rerun
+    }
+
+    if (!rerun && assumeFreshInstall()) {
+      params.assume_fresh = true
+    }
+
     // The request stays alive past the way out: its answer names the run the skip ends.
-    const started = await request<OnboardingStartResult>(
-      'onboarding.start',
-      {
-        facts_source: factsSource(),
-        fresh_launch: freshLaunch,
-        locale: getRuntimeI18nLocale(),
-        rerun,
-        assume_fresh: !rerun && assumeFreshInstall()
-      },
-      intro ? NO_DEADLINE : undefined
-    )
+    const started = await request<OnboardingStartResult>('onboarding.start', params, intro ? NO_DEADLINE : undefined)
 
     if (skipped) {
       await request('onboarding.skip', { session_id: started.session_id })
@@ -215,12 +219,14 @@ export function decideOnboarding(
 
 async function readAndStart(request: OnboardingRequest, resume: OnboardingResume, options?: StartOptions): Promise<void> {
   try {
+    const params: OnboardingStateParams = {}
+
+    if (assumeFreshInstall()) {
+      params.assume_fresh = true
+    }
+
     // One deadline for the due check: past it the app is released and a late answer opens nothing.
-    const state = await request<OnboardingRunStateResult>(
-      'onboarding.state',
-      { assume_fresh: assumeFreshInstall() },
-      ONBOARDING_DECIDE_DEADLINE_MS
-    )
+    const state = await request<OnboardingRunStateResult>('onboarding.state', params, ONBOARDING_DECIDE_DEADLINE_MS)
 
     if (state.run && state.eligible) {
       await startOnboarding(request, resume, { ...options, freshLaunch: true })

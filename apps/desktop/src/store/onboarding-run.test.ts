@@ -209,11 +209,11 @@ describe('onboarding run', () => {
   })
 
   it('asks for a fresh-install run only on a --fresh-install launch, and never on a rerun', async () => {
-    const sent: (boolean | undefined)[] = []
+    const sent: boolean[] = []
 
     const request = async <T,>(method: string, params?: OnboardingStartParams): Promise<T> => {
       if (method === 'onboarding.start') {
-        sent.push(params?.assume_fresh)
+        sent.push(params !== undefined && 'assume_fresh' in params)
       }
 
       // SAFETY: the fake answers onboarding.start with its contract result shape.
@@ -234,6 +234,7 @@ describe('onboarding run', () => {
       Object.defineProperty(window, 'hermesDesktop', { configurable: true, value: undefined })
     }
 
+    // Only the fresh-install launch carries the field at all.
     expect(sent).toEqual([false, true, false])
   })
 
