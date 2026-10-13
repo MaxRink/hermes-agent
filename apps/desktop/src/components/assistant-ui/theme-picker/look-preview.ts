@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 
+import { $terminalTakeover, setTerminalTakeover } from '@/app/right-sidebar/store'
 import { type PreviewUndo, snapshotChatLayout } from '@/components/onboarding/first-run/assembly'
-import { applyDesktopLayoutPreset } from '@/store/pane-focus'
+import { $fileBrowserOpen, setFileBrowserOpen } from '@/store/layout'
+import { applyDesktopLayoutPreset, openLayoutPickPanes } from '@/store/pane-focus'
 import { $accentOverride, setAccentOverride } from '@/themes/accent-override'
-import { NOUS_ACCENT, resolveAccentPick } from '@/themes/accents'
+import { resolveAccentPick } from '@/themes/accents'
+import { ownAccent } from '@/themes/persist-accent'
 
 /** A staged pick; `value` null is the theme's own accent. */
 export interface StagedLook {
@@ -16,9 +19,9 @@ interface LiveLook {
 }
 
 // The accent previews through the unsaved override so nothing is persisted before Continue; the theme's own
-// accent previews as Nous blue because an empty override would keep the current colour.
+// accent previews as the base theme's colour because an empty override would keep the current (maybe saved) one.
 const ACCENT: LiveLook = {
-  apply: (value, dark) => setAccentOverride(resolveAccentPick(value ?? 'theme', dark)?.hex ?? NOUS_ACCENT),
+  apply: (value, dark) => setAccentOverride(resolveAccentPick(value ?? 'theme', dark)?.hex ?? ownAccent()),
   snapshot: () => {
     const override = $accentOverride.get()
 
@@ -30,11 +33,25 @@ const ACCENT: LiveLook = {
 // Simple/Advanced when the preset needs it), so a cancelled preview never touches either mode's saved layout.
 const LAYOUT: LiveLook = {
   apply: value => {
-    if (value) {
-      applyDesktopLayoutPreset(value)
+    if (value && applyDesktopLayoutPreset(value)) {
+      openLayoutPickPanes(value)
     }
   },
-  snapshot: snapshotChatLayout
+  // The terminal and file tree keep their open state outside the layout tree.
+  snapshot: () => {
+    const chat = snapshotChatLayout()
+    const terminal = $terminalTakeover.get()
+    const files = $fileBrowserOpen.get()
+
+    return {
+      keep: chat.keep,
+      revert: () => {
+        chat.revert()
+        setTerminalTakeover(terminal)
+        setFileBrowserOpen(files)
+      }
+    }
+  }
 }
 
 export interface LookPreview {
