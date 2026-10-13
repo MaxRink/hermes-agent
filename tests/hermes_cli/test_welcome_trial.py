@@ -272,3 +272,14 @@ def test_a_missed_first_launch_stays_due_and_keeps_the_trial(portal, monkeypatch
     assert welcome_trial.claim_blocker() is None
     assert welcome_trial.claim_desktop_free_tier() is not None
     assert welcome_trial.claim_blocker() == "a Nous identity exists"
+
+
+def test_one_due_answer_walks_the_provider_ladder_once(portal, monkeypatch):
+    from hermes_cli import auth
+
+    as_local_desktop_backend(monkeypatch)
+    real, calls = auth.resolve_provider, []
+    monkeypatch.setattr(auth, "resolve_provider", lambda *a, **kw: (calls.append(kw), real(*a, **kw))[1])
+
+    assert welcome_trial.inference_available() is True  # fresh: the trial is claimable
+    assert len(calls) == 1

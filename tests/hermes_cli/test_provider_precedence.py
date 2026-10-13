@@ -25,7 +25,7 @@ def _config(monkeypatch, model_cfg):
 
 def _no_aws(monkeypatch):
     # Neutralize any ambient AWS creds so Bedrock auto-detect can't interfere.
-    monkeypatch.setattr("agent.bedrock_adapter.has_aws_credentials", lambda: False)
+    monkeypatch.setattr("agent.bedrock_adapter.has_aws_credentials", lambda *_a, **_kw: False)
 
 
 def _clear_provider_env(monkeypatch):
@@ -99,7 +99,7 @@ def _claimed_trial_with_aws(monkeypatch):
     _clear_provider_env(monkeypatch)
     claimed_trial(monkeypatch)
     _never_mint(monkeypatch)
-    monkeypatch.setattr("agent.bedrock_adapter.has_aws_credentials", lambda: True)
+    monkeypatch.setattr("agent.bedrock_adapter.has_aws_credentials", lambda *_a, **_kw: True)
 
 
 class TestFreeTierBeatsImplicitHostCredentials:
@@ -131,7 +131,7 @@ class TestFreeTierBeatsImplicitHostCredentials:
         monkeypatch.delenv("HERMES_DESKTOP", raising=False)
         monkeypatch.delenv("HERMES_DASHBOARD_SESSION_TOKEN", raising=False)
         assert resolve_provider("auto") == "bedrock"
-        monkeypatch.setattr("agent.bedrock_adapter.has_aws_credentials", lambda: False)
+        monkeypatch.setattr("agent.bedrock_adapter.has_aws_credentials", lambda *_a, **_kw: False)
         with pytest.raises(AuthError):
             resolve_provider("auto")
 
@@ -139,7 +139,7 @@ class TestFreeTierBeatsImplicitHostCredentials:
         """With the free tier hidden, a claimed trial is not an answer and the ladder falls through
         to the next real rung."""
         _claimed_trial_with_aws(monkeypatch)
-        monkeypatch.setattr("agent.bedrock_adapter.has_aws_credentials", lambda: False)
+        monkeypatch.setattr("agent.bedrock_adapter.has_aws_credentials", lambda *_a, **_kw: False)
         assert resolve_provider("auto") == "nous"
         with pytest.raises(AuthError):
             resolve_provider("auto", skip_free_tier=True)

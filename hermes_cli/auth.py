@@ -1707,7 +1707,10 @@ def resolve_provider(
     # below explicit keys and below the free tier.
     try:
         from agent.bedrock_adapter import has_aws_credentials
-        if has_aws_credentials():
+        from hermes_cli.anon_auth import on_local_desktop_backend
+        # The desktop's own backend runs on the user's computer, where the EC2 metadata lookup only
+        # costs its timeout on every cold resolve.
+        if has_aws_credentials(instance_metadata=not on_local_desktop_backend()):
             return "bedrock"
     except ImportError:
         pass  # boto3 not installed

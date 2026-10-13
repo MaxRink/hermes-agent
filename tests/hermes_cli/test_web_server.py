@@ -1495,7 +1495,7 @@ CONFIG_SCHEMA = ProviderConfigSchema(
 
         fb.reset_for_tests()
         monkeypatch.setattr("hermes_cli.model_cost_guard.expensive_model_warning", lambda *_a, **_k: None)
-        monkeypatch.setattr("agent.bedrock_adapter.has_aws_credentials", lambda: False)
+        monkeypatch.setattr("agent.bedrock_adapter.has_aws_credentials", lambda *_a, **_kw: False)
         broadcasts = []
         monkeypatch.setattr(fb, "_broadcast", broadcasts.append)
         with fb._lock:

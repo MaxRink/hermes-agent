@@ -82,7 +82,7 @@ class TestIdentityLifecycle:
     def test_opt_out_bool_disables_everything(self, portal, monkeypatch):
         _write_config(monkeypatch, guest=False)
         # A developer machine's ~/.aws would answer the Bedrock rung and hide the AuthError.
-        monkeypatch.setattr("agent.bedrock_adapter.has_aws_credentials", lambda: False)
+        monkeypatch.setattr("agent.bedrock_adapter.has_aws_credentials", lambda *_a, **_kw: False)
         assert anon_auth.ensure_portal_identity(explicit=True) is None
         assert portal.calls == []
         with pytest.raises(anon_auth.AuthError):
@@ -327,7 +327,7 @@ class TestBootstrapNeverCreates:
         return fb
 
     def test_bootstrap_on_a_fresh_machine_mints_nothing(self, portal, monkeypatch):
-        monkeypatch.setattr("agent.bedrock_adapter.has_aws_credentials", lambda: False)
+        monkeypatch.setattr("agent.bedrock_adapter.has_aws_credentials", lambda *_a, **_kw: False)
         from tests.hermes_cli.anon_portal import as_local_desktop_backend
         as_local_desktop_backend(monkeypatch)              # the trial is claimable here; boot still never claims it
         record = self._fresh().run_bootstrap(announce=False)
@@ -357,7 +357,7 @@ class TestBootstrapNeverCreates:
     def test_reads_never_mint(self, portal, monkeypatch):
         """status, provider resolution and the connector bearer are reads: with no identity they
         answer 'nothing' and touch no network."""
-        monkeypatch.setattr("agent.bedrock_adapter.has_aws_credentials", lambda: False)
+        monkeypatch.setattr("agent.bedrock_adapter.has_aws_credentials", lambda *_a, **_kw: False)
         from tools.managed_tool_gateway import read_nous_access_token
         assert read_nous_access_token() is None
         with pytest.raises(anon_auth.AuthError):

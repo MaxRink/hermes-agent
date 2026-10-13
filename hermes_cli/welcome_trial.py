@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+from dataclasses import dataclass
 import sqlite3
 from collections.abc import Callable
 from pathlib import Path
@@ -47,9 +48,11 @@ def provider_configured() -> bool:
 
 def inference_available(*, assume_fresh: bool = False) -> bool:
     """Something can carry a first chat on this backend: the trial (claimed, or claimable now) or a
-    configured provider."""
-    return (anon_auth.free_inference_active() or provider_configured()
-            or claim_blocker(assume_fresh=assume_fresh) is None)
+    configured provider. One walk of the provider ladder answers both halves."""
+    if anon_auth.free_inference_active():
+        return True
+    configured = provider_configured()
+    return configured or claim_blocker(assume_fresh=assume_fresh, configured=configured) is None
 
 
 def _machine_is_used(assume_fresh: bool) -> bool:
@@ -58,20 +61,29 @@ def _machine_is_used(assume_fresh: bool) -> bool:
     return not assume_fresh and probe().existing and not trial_reserved()
 
 
+@dataclass(frozen=True, slots=True)
+class _Ask:
+    assume_fresh: bool
+    configured: Optional[bool]  # the caller's provider_configured() answer, when it has one
+
+
 # Cheapest first; the last one reads the disk. Each is a reason the trial cannot be claimed.
-_CLAIM_BLOCKERS: tuple[tuple[str, Callable[[bool], bool]], ...] = (
-    ("not the desktop's local backend", lambda _fresh: not anon_auth.on_local_desktop_backend()),
-    ("guests are switched off", lambda _fresh: not anon_auth.guest_allowed()),
-    ("a Nous identity exists", lambda _fresh: _has_nous_identity()),
-    ("a provider is configured", lambda _fresh: provider_configured()),
-    ("Hermes was used on this machine", _machine_is_used),
+_CLAIM_BLOCKERS: tuple[tuple[str, Callable[[_Ask], bool]], ...] = (
+    ("not the desktop's local backend", lambda _ask: not anon_auth.on_local_desktop_backend()),
+    ("guests are switched off", lambda _ask: not anon_auth.guest_allowed()),
+    ("a Nous identity exists", lambda _ask: _has_nous_identity()),
+    ("a provider is configured",
+     lambda ask: provider_configured() if ask.configured is None else ask.configured),
+    ("Hermes was used on this machine", lambda ask: _machine_is_used(ask.assume_fresh)),
 )
 
 
-def claim_blocker(*, assume_fresh: bool = False) -> Optional[str]:
+def claim_blocker(*, assume_fresh: bool = False, configured: Optional[bool] = None) -> Optional[str]:
     """Why the trial cannot be claimed here, or None when it can. *assume_fresh* is the unpackaged
-    desktop's ``--fresh-install`` switch: it skips only the machine check."""
-    return next((reason for reason, blocks in _CLAIM_BLOCKERS if blocks(assume_fresh)), None)
+    desktop's ``--fresh-install`` switch: it skips only the machine check. *configured* is a
+    ``provider_configured()`` answer the caller already has, so the ladder is not walked twice."""
+    ask = _Ask(assume_fresh, configured)
+    return next((reason for reason, blocks in _CLAIM_BLOCKERS if blocks(ask)), None)
 
 
 def claim_desktop_free_tier(*, assume_fresh: bool = False, force: bool = False) -> Optional[dict[str, Any]]:
