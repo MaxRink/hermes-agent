@@ -120,12 +120,14 @@ FIRST_TASKS: tuple[FirstTask, ...] = (
             "first adds the Blender Lab repository, the second installs the add-on); allow Online access; start the "
             "MCP bridge on port 9876. Check again each time they say done.",
             "Offer three scene ideas in one clarify: two that fit them, one that shows off this machine.",
-            "First capture their Blender window to preview.png and open it in the preview pane, so they watch "
-            "Hermes work. Then build it in a new scene named Hermes, in camera view, in four calls they can watch: ground and camera, "
-            "main objects, materials and light, framing. After each, render the viewport over preview.png; the "
-            "pane reloads it.",
-            "Render one 1280x720 EEVEE still to render.png and open it in the pane. Look at it before you call it "
-            "done: lit, not black, framed. Fix and re-render once at most.",
+            "First capture their Blender window with get_screenshot_of_window_as_image, copy the image it saved "
+            "over preview.png and open that in the preview pane, so they watch Hermes work. Then build it in a new "
+            "scene named Hermes, in camera view, in four calls they can watch: ground and camera, main objects, "
+            "materials and light, framing. After each, capture the window over preview.png again; the pane "
+            "reloads it.",
+            "Render one 1280x720 EEVEE still with render_viewport_to_path, copy the filepath it returns to "
+            "render.png and open it in the pane. Look at it before you call it done: lit, not black, framed. Fix "
+            "and re-render once at most.",
             "Save only the new scene with bpy.data.libraries.write as scene.blend, and the code as scene.py.",
         ),
         output="scene.blend, scene.py, preview.png and render.png in ~/hermes-first-task/; the render open in the "
