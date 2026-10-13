@@ -835,6 +835,7 @@ compression:
 # lost — the full result is on disk and readable with read_file.
 #
 # tool_budget:
+#   turn_budget_chars: 100000  # aggregate inline tool results per turn
 #   mcp_result_size_chars: 50000   # per-result spillover threshold for mcp_* tools
 
 # =============================================================================

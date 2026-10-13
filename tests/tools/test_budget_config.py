@@ -11,6 +11,7 @@ from unittest.mock import patch
 from tools.budget_config import (
     DEFAULT_BUDGET,
     DEFAULT_RESULT_SIZE_CHARS,
+    DEFAULT_TURN_BUDGET_CHARS,
     PINNED_THRESHOLDS,
     BudgetConfig,
     budget_for_context_window,
@@ -175,3 +176,39 @@ class TestMcpPrefixThreshold:
         cfg = budget_for_context_window(16_384)  # scaled default < 50K
         assert cfg.default_result_size < 50_000
         assert cfg.resolve_threshold("mcp_tool") == cfg.default_result_size
+
+    def test_turn_budget_override_applies_and_mcp_override_is_preserved(self):
+        with patch("hermes_cli.config.load_config_readonly", return_value={
+            "tool_budget": {"turn_budget_chars": 100_000, "mcp_result_size_chars": 20_000}
+        }):
+            cfg = budget_for_context_window(128_000)
+        assert cfg.turn_budget == 100_000
+        assert cfg.mcp_result_size == 20_000
+
+    def test_explicit_turn_cap_cannot_expand_a_small_context(self):
+        with patch("hermes_cli.config.load_config_readonly", return_value={
+            "tool_budget": {"turn_budget_chars": 100_000}
+        }):
+            cfg = budget_for_context_window(4_096)
+        assert cfg.turn_budget == 16_000
+
+        with patch("hermes_cli.config.load_config_readonly", return_value={
+            "tool_budget": {"turn_budget_chars": 1}
+        }):
+            cfg = budget_for_context_window(128_000)
+        assert cfg.turn_budget == 1
+
+    def test_invalid_fields_fail_independently_and_reject_bool(self):
+        with patch("hermes_cli.config.load_config_readonly", return_value={
+            "tool_budget": {"turn_budget_chars": True, "mcp_result_size_chars": 2_000}
+        }):
+            cfg = budget_for_context_window(128_000)
+        assert cfg.turn_budget == 153_600
+        assert cfg.mcp_result_size == 2_000
+
+    def test_unknown_context_caps_large_turn_override(self):
+        with patch("hermes_cli.config.load_config_readonly", return_value={
+            "tool_budget": {"turn_budget_chars": 1_000_000}
+        }):
+            cfg = budget_for_context_window(None)
+        assert cfg.turn_budget == DEFAULT_TURN_BUDGET_CHARS

@@ -22,24 +22,38 @@ DEFAULT_MCP_RESULT_SIZE_CHARS: int = 50_000
 MCP_TOOL_PREFIX: str = "mcp_"
 
 
-def _configured_mcp_result_size() -> int:
-    """Read ``tool_budget.mcp_result_size_chars`` via ``load_config_readonly`` (the
-    sanctioned path; raw config.yaml parsing outside owner modules is test-guarded).
-    Any error, missing key or non-positive value returns the built-in default.
+def _configured_budget_overrides() -> tuple[int, int]:
+    """Read the optional aggregate and MCP caps from ``tool_budget``.
+
+    ``turn_budget_chars`` is a hard aggregate cap. ``mcp_result_size_chars``
+    retains its historical override semantics for MCP spillover. Invalid or
+    absent values retain their built-in defaults independently.
 
     The ``tool_budget:`` block name is shared with the wider configurable-caps proposal (#80508) so the two
     can merge without a key rename.
     """
+    turn_budget = DEFAULT_TURN_BUDGET_CHARS
+    mcp_result_size = DEFAULT_MCP_RESULT_SIZE_CHARS
     try:
         from hermes_cli.config import load_config_readonly
         data = load_config_readonly()
         block = data.get("tool_budget") if isinstance(data, dict) else None
-        raw = block.get("mcp_result_size_chars") if isinstance(block, dict) else None
-        if raw is not None and int(raw) > 0:
-            return int(raw)
+        if isinstance(block, dict):
+            for key in ("turn_budget_chars", "mcp_result_size_chars"):
+                raw = block.get(key)
+                # bool is an int subclass, but is not a meaningful byte budget.
+                try:
+                    value = int(raw) if raw is not None and not isinstance(raw, bool) else 0
+                except (TypeError, ValueError):
+                    value = 0
+                if value > 0:
+                    if key == "turn_budget_chars":
+                        turn_budget = value
+                    else:
+                        mcp_result_size = value
     except Exception:
         pass
-    return DEFAULT_MCP_RESULT_SIZE_CHARS
+    return turn_budget, mcp_result_size
 
 
 @dataclass(frozen=True)
@@ -100,15 +114,24 @@ def budget_for_context_window(context_length: int | None) -> BudgetConfig:
     200K-char turn budget (~50K tokens), can by itself approach or exceed the whole window and force an
     oversized request (#23767).
     """
-    mcp_result_size = _configured_mcp_result_size()
+    configured_turn_budget, mcp_result_size = _configured_budget_overrides()
     if not context_length or context_length <= 0:
-        if mcp_result_size == DEFAULT_MCP_RESULT_SIZE_CHARS:
+        if (configured_turn_budget == DEFAULT_TURN_BUDGET_CHARS
+                and mcp_result_size == DEFAULT_MCP_RESULT_SIZE_CHARS):
             return DEFAULT_BUDGET
-        return BudgetConfig(mcp_result_size=mcp_result_size)
+        return BudgetConfig(
+            turn_budget=min(configured_turn_budget, DEFAULT_TURN_BUDGET_CHARS),
+            mcp_result_size=mcp_result_size,
+        )
     window_chars = context_length * _CHARS_PER_TOKEN
     return BudgetConfig(
         default_result_size=max(_MIN_RESULT_SIZE_CHARS, min(int(window_chars * _PER_RESULT_WINDOW_FRACTION), DEFAULT_RESULT_SIZE_CHARS)),
-        turn_budget=max(_MIN_TURN_BUDGET_CHARS, min(int(window_chars * _PER_TURN_WINDOW_FRACTION), DEFAULT_TURN_BUDGET_CHARS)),
+        # An explicit profile cap can only tighten the context-scaled default;
+        # it must never enlarge a small model's safe aggregate budget.
+        turn_budget=min(
+            configured_turn_budget,
+            max(_MIN_TURN_BUDGET_CHARS, min(int(window_chars * _PER_TURN_WINDOW_FRACTION), DEFAULT_TURN_BUDGET_CHARS)),
+        ),
         preview_size=DEFAULT_PREVIEW_SIZE_CHARS,
         mcp_result_size=mcp_result_size,
     )
