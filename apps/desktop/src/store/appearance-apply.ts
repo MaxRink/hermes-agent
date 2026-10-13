@@ -19,7 +19,7 @@ import { persistAccent } from '@/themes/persist-accent'
 import { requestMode } from '@/themes/request'
 
 import { $interfaceMode, setInterfaceMode } from './interface-mode'
-import { applyDesktopLayoutPreset } from './pane-focus'
+import { applyDesktopLayoutPreset, openLayoutPickPanes } from './pane-focus'
 
 export const THEME_MODES: readonly ThemeMode[] = ['light', 'dark', 'system']
 
@@ -73,7 +73,9 @@ function applyLayout(id: string): void {
     setInterfaceMode(mode)
   }
 
-  applyDesktopLayoutPreset(id)
+  if (applyDesktopLayoutPreset(id)) {
+    openLayoutPickPanes(id)
+  }
 }
 
 export function applyAppearance(values: AppearanceValues): AppearanceAnswer {

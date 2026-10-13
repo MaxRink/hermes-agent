@@ -11,6 +11,7 @@ import { useContributions } from '@/contrib/react/use-contributions'
 import { useI18n } from '@/i18n'
 import { selectableCardClass } from '@/lib/selectable-card'
 import { cn } from '@/lib/utils'
+import { layoutPickOpens } from '@/store/pane-focus'
 
 import { CARD_ACTION_CLASS, CARD_DETAIL_CLASS, CARD_OPTION_CLASS } from '../setup-beat/card-type'
 
@@ -26,6 +27,13 @@ export const FIRST_RUN_LAYOUTS = [
   { id: 'sidebar-left', name: 'basic', detail: 'basicDetail' },
   { id: 'terminal-deck', name: 'elite', detail: 'eliteDetail' }
 ] as const
+
+/** A thumbnail draws the panes a pick opens as open, so Elite's terminal and files show. */
+function pickResting(id: string): ReadonlySet<string> {
+  const opens = layoutPickOpens(id)
+
+  return new Set([...layoutPresetResting(id)].filter(pane => !opens.includes(pane)))
+}
 
 /** The two first-run layouts as the layout picker's own preset cards; a click previews the layout, Continue answers with it. */
 export function LayoutPickerCard({ onContinue }: LayoutPickerCardProps) {
@@ -52,7 +60,7 @@ export function LayoutPickerCard({ onContinue }: LayoutPickerCardProps) {
               type="button"
             >
               <span className="flex aspect-[10/7] w-full">
-                {isLayoutNode(tree) && <TreeThumbnail node={tree} resting={layoutPresetResting(choice.id)} />}
+                {isLayoutNode(tree) && <TreeThumbnail node={tree} resting={pickResting(choice.id)} />}
               </span>
               <span className="flex flex-col gap-0.5">
                 <span

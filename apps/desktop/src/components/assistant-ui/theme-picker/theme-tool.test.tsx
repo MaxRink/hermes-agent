@@ -6,7 +6,9 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { PRIMARY_SESSION_VIEW, type SessionView, SessionViewProvider } from '@/app/chat/session-view'
 import { registerLayoutPresets } from '@/app/contrib/layout-presets'
+import { $terminalTakeover } from '@/app/right-sidebar/store'
 import { I18nProvider } from '@/i18n'
+import { $fileBrowserOpen } from '@/store/layout'
 import { rememberServerRequest, resetServerRequestsForTests } from '@/store/server-requests'
 import { $themePicks, parkThemePick } from '@/store/theme-pick'
 import { $accentOverride } from '@/themes/accent-override'
@@ -55,6 +57,8 @@ describe('ThemeTool', () => {
     cleanup()
     $themePicks.set({})
     $accentOverride.set(null)
+    $terminalTakeover.set(false)
+    $fileBrowserOpen.set(false)
     resetServerRequestsForTests()
   })
 
@@ -116,5 +120,21 @@ describe('ThemeTool', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
 
     expect(respond).toHaveBeenCalledWith({ picked: { layout: 'terminal-deck' } })
+  })
+
+  it('opens the terminal and files for Elite, and a cancelled preview closes them again', async () => {
+    park('layout')
+
+    const { rerender } = renderRow({ args: { picker: 'layout' } })
+
+    fireEvent.click(screen.getByRole('button', { name: /Elite/ }))
+
+    expect($terminalTakeover.get()).toBe(true)
+    expect($fileBrowserOpen.get()).toBe(true)
+
+    rerender(row({ args: { picker: 'layout' }, result: { cancelled: true } }))
+
+    await waitFor(() => expect($terminalTakeover.get()).toBe(false))
+    expect($fileBrowserOpen.get()).toBe(false)
   })
 })

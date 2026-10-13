@@ -49,6 +49,20 @@ export function revealDesktopPane(pane: string): boolean {
   return true
 }
 
+// Elite is the terminal deck with the tools its card names open. The preset itself rests them, so the
+// same deck picked in Settings stays quiet; a pick from the layout card or set_theme shows the difference.
+const PICK_OPENS: Readonly<Record<string, readonly string[]>> = { 'terminal-deck': ['terminal', 'files'] }
+
+/** The panes a layout pick opens beyond its preset's resting set. */
+export const layoutPickOpens = (preset: string): readonly string[] => PICK_OPENS[preset] ?? []
+
+/** Open the panes `layoutPickOpens` names for `preset`. */
+export function openLayoutPickPanes(preset: string): void {
+  for (const pane of layoutPickOpens(preset)) {
+    revealDesktopPane(pane)
+  }
+}
+
 /** Apply a layout preset by id, resolved against the layouts contribution
  *  registry — the SAME list the layout picker renders, so core presets
  *  (default/focus/terminal-deck/quad), plugin presets, and user-saved presets
