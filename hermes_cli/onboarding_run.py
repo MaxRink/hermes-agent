@@ -17,11 +17,6 @@ from hermes_constants import (
     named_profile_is_deleted,
 )
 
-# The agentic setup profile's marker file (hermes_cli/profiles.py SETUP_PROFILE_MARKER), spelled out
-# because that constant goes away with the agentic setup while this check must keep skipping the dir.
-_SETUP_PROFILE_MARKER = ".setup-profile.json"
-
-
 def _root_config() -> Path:
     return get_default_hermes_root() / "config.yaml"
 
@@ -30,7 +25,7 @@ def install_has_history(root: Path) -> bool:
     """A session row in the root ``state.db``, or a named profile the user made. A fresh boot
     creates neither: it leaves an empty ``state.db``, ``auth.json`` (the free-tier mint) and
     ``SOUL.md``, which is why the signal is a session row and not a file."""
-    if any(not (path / _SETUP_PROFILE_MARKER).is_file() for path in _named_profiles(root)):
+    if _named_profiles(root):
         return True
     db_path = root / "state.db"
     if not db_path.is_file():
