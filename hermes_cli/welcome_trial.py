@@ -34,10 +34,11 @@ def provider_configured() -> bool:
     """Something besides the welcome trial carries inference: a key, a config pin, a sign-in, a host
     credential. The resolver itself answers, with the free-tier rung hidden."""
     from hermes_cli.auth import resolve_provider
+    from hermes_cli.auth_constants import AuthError
 
     try:
         provider = resolve_provider("auto", skip_free_tier=True)
-    except Exception:  # no_provider_configured, or an unreadable store: nothing usable here
+    except AuthError:  # no_provider_configured
         return False
     return provider != "nous" or not anon_auth.has_guest()
 

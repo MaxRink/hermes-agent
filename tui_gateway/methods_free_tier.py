@@ -69,10 +69,11 @@ def _(rid, params: dict) -> dict:
     enabled}``, plus ``{error, error_code, retryable, retry_after}`` when the portal refused."""
     try:
         from hermes_cli import anon_auth, free_tier_bootstrap, welcome_trial
+        from hermes_cli.auth_constants import AuthError
         if _trial_claimable():
             try:
                 welcome_trial.claim_desktop_free_tier(force=True)
-            except Exception as exc:   # memoised by the mint primitive before it re-raised
+            except AuthError as exc:   # memoised by the mint primitive before it re-raised
                 logger.info("welcome trial claim failed: %s", exc)
             if not params.get("profile"):
                 # The launch profile: ``setup.status`` and the ``setup.ready`` listeners move with it.

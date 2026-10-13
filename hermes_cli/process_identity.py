@@ -262,7 +262,7 @@ def is_desktop_owned_backend(argv: Optional[Sequence[str]] = None) -> bool:
 def is_local_desktop_backend() -> bool:
     """The backend Desktop spawned on this machine: the local pool spawn's credential, never the
     SSH spawn (its token arrives as a file on argv, and that host is another computer)."""
-    return os.environ.get("HERMES_DESKTOP") == "1" and bool(os.environ.get("HERMES_DASHBOARD_SESSION_TOKEN"))
+    return os.environ.get("HERMES_DESKTOP") == "1" and os.environ.get("HERMES_DASHBOARD_SESSION_TOKEN", "") != ""
 
 
 def _desktop_spawner_identity() -> tuple[Optional[int], Optional[float]]:

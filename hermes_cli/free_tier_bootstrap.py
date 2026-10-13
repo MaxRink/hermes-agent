@@ -199,8 +199,8 @@ def run_bootstrap(*, announce: bool = True) -> SetupRecord:
     try:
         from hermes_cli.welcome_trial import grandfather_existing_guest
         grandfather_existing_guest()
-    except Exception as exc:  # the record still says who carries inference without it
-        logger.info("free tier: could not check for an existing free-model guest: %s", exc)
+    except Exception:  # the record still says who carries inference without it
+        logger.warning("free tier: could not check for an existing free-model guest", exc_info=True)
     record = _build_record(other=_inventory_other_providers())
     with _lock:
         _record = record
@@ -234,6 +234,8 @@ def _broadcast(record: SetupRecord) -> None:
 
 def start_background_bootstrap() -> threading.Thread:
     """``hermes serve`` entry: run on a daemon thread so the inventory never delays the socket."""
-    thread = threading.Thread(target=run_bootstrap, daemon=True, name="free-tier-bootstrap")
+    from agent.memory_provider import spawn_context_thread
+
+    thread = spawn_context_thread(run_bootstrap, name="free-tier-bootstrap")
     thread.start()
     return thread
