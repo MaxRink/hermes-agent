@@ -147,6 +147,8 @@ def _preview_line(facts: Facts) -> str:
 _NPM = "https://cdn.jsdelivr.net/npm/"
 _PAGE = (
     "One self-contained HTML file, laid out for the pane (often about 600px wide) and able to widen.",
+    "A standalone page: it sets its own background, font and colours. The preview pane does not theme it; "
+    "the theme variables are only for ::preview widgets in the chat.",
     "It moves within a second: a diagram that draws itself, a dot that runs a path, numbers that count up to "
     "real values.",
     f"Libraries, only what the page needs, each pinned as {_NPM}<package>@<version>/<file>: gsap@3.13.0 for "
@@ -293,8 +295,13 @@ def _already(record, beat: str) -> str:
 
 def _wrote(record, facts, beat: str) -> str:
     # The turn ends on this result; the turn note on their message says how to go on.
-    return (f"The {beat} card closed unanswered: they wrote a message instead. It comes next as their own turn; "
+    text = (f"The {beat} card closed unanswered: they wrote a message instead. It comes next as their own turn; "
             "write nothing until it does.")
+    if beat in ("theme", "layout"):
+        # "What do you think?" asks for a pick: a look around without one leaves them asking again.
+        text += (f" If it asks what you think or which one fits, pick the {beat} yourself: look around first if "
+                 f"they asked, then say your pick and why in one line and apply it ({_TYPED_ANSWER[beat]}).")
+    return text
 
 
 def _timed_out(record, facts, beat: str) -> str:
