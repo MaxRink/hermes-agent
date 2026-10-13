@@ -1,5 +1,5 @@
 """``onboarding.run`` lives in the root profile's config.yaml: unset runs onboarding only on a
-fresh install, an explicit bool wins, and a backend launched under a named profile reads and writes
+machine that never used Hermes, an explicit bool wins, and a backend launched under a named profile reads and writes
 the same root file."""
 
 from __future__ import annotations
@@ -22,10 +22,11 @@ def root(tmp_path, monkeypatch) -> Path:
     return home
 
 
-def _add_session(home: Path) -> None:
+def _add_chat(home: Path) -> None:
     db = SessionDB(home / "state.db")
     try:
         db.create_session("old-session", "desktop")
+        db.append_message("old-session", "user", "hello")
     finally:
         db.close()
 
@@ -44,8 +45,17 @@ def test_fresh_install_runs(root):
     assert onboarding_run.should_run() is True
 
 
-def test_root_with_a_session_does_not_run(root):
-    _add_session(root)
+def test_an_empty_session_row_is_not_use(root):
+    # Desktop resume and onboarding.start both write a session row before any message.
+    db = SessionDB(root / "state.db")
+    db.create_session("minted", "desktop")
+    db.close()
+
+    assert onboarding_run.should_run() is True
+
+
+def test_root_with_a_chat_does_not_run(root):
+    _add_chat(root)
 
     assert onboarding_run.should_run() is False
 
@@ -69,7 +79,7 @@ def test_a_managed_run_false_wins_on_a_fresh_install(root, tmp_path, monkeypatch
 
 
 def test_explicit_true_runs_despite_history(root):
-    _add_session(root)
+    _add_chat(root)
     onboarding_run.set_run(True)
 
     assert onboarding_run.should_run() is True

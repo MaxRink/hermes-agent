@@ -33,6 +33,44 @@ def hermes_vendored_dirs() -> tuple[str, ...]:
     return ("~/.hermes/bin",) if _POSIX else ("%USERPROFILE%/.hermes/bin",)
 
 
+def machine_marker_files() -> tuple[str, ...]:
+    """Where Hermes records that this OS user has used it. No Hermes data-dir setting moves these.
+    The first entry is the one written; the rest are read too (Windows: MSIX builds that ran with
+    filesystem virtualisation wrote under the package's LocalCache)."""
+    if _WIN:
+        return ("%LOCALAPPDATA%/Nous Research/.machine",
+                "%LOCALAPPDATA%/Packages/NousResearch*_*/LocalCache/Local/Nous Research/.machine")
+    if sys.platform == "darwin":
+        return ("~/Library/Application Support/Nous Research/.machine",)
+    return ("$XDG_STATE_HOME/nous-research/.machine", "~/.local/state/nous-research/.machine")
+
+
+def hermes_home_globs() -> tuple[str, ...]:
+    """Every place a Hermes data root can sit by default: suffixed channel roots, the legacy Windows
+    root, and the per-package roots of MSIX builds that ran with filesystem virtualisation."""
+    if _WIN:
+        return ("%LOCALAPPDATA%/hermes*", "%USERPROFILE%/.hermes",
+                "%LOCALAPPDATA%/Packages/NousResearch*_*/LocalCache/Local/hermes*")
+    return ("~/.hermes*",)
+
+
+def gateway_service_definition_globs() -> tuple[str, ...]:
+    """Gateway service definitions, each naming the HERMES_HOME it serves."""
+    if _WIN:
+        return ("%APPDATA%/Microsoft/Windows/Start Menu/Programs/Startup/Hermes_Gateway*",)
+    if sys.platform == "darwin":
+        return ("~/Library/LaunchAgents/ai.hermes.gateway*.plist",)
+    return ("$XDG_CONFIG_HOME/systemd/user/hermes-gateway*.service", "~/.config/systemd/user/hermes-gateway*.service",
+            "/etc/systemd/system/hermes-gateway*.service")
+
+
+def mac_privacy_protected_dirs() -> tuple[str, ...]:
+    """Folders macOS guards with a permission prompt (TCC); opening anything inside raises it."""
+    if sys.platform != "darwin":
+        return ()
+    return ("~/Documents", "~/Desktop", "~/Downloads", "~/Library/Mobile Documents")  # windows-footgun: ok — macOS only
+
+
 def windows_user_program_dirs() -> tuple[str, ...]:
     if not _WIN:
         return ()
