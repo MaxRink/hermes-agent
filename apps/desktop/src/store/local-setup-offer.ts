@@ -101,8 +101,9 @@ export function refreshLocalSetupEligibility(): Promise<Eligibility> {
       transient: true
     }))
     .then(result => {
+      // The connection changed while reading: the answer describes a machine this window has left.
       if (generation !== eligibilityGeneration) {
-        return result
+        return { checkedAt: Date.now(), fit: null, reason: 'connection changed while reading', transient: true }
       }
 
       eligibilityRead = null
