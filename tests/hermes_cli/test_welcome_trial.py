@@ -194,3 +194,33 @@ def test_a_leftover_guest_pool_row_is_not_reported_as_a_nous_login(portal, monke
 
     # Provider setup would otherwise tag Nous Portal "Connected" for a credential that runs nothing.
     assert get_nous_auth_status_local()["logged_in"] is False
+
+
+@pytest.mark.parametrize("desktop", [True, False], ids=["local_desktop_backend", "elsewhere"])
+def test_a_connector_guest_pinned_to_nous_gets_no_inference_token(portal, monkeypatch, desktop):
+    from hermes_cli.auth_constants import AuthError
+    from hermes_cli.runtime_provider import resolve_runtime_provider
+    from hermes_constants import get_hermes_home
+
+    if desktop:
+        as_local_desktop_backend(monkeypatch)
+    anon_auth.ensure_portal_identity(explicit=True)  # a connector action's guest, never claimed
+    (get_hermes_home() / "config.yaml").write_text("model:\n  provider: nous\n  default: nous/welcome\n",
+                                                   encoding="utf-8")
+    with contextlib.suppress(AuthError):
+        resolve_runtime_provider(requested="nous")
+
+    assert [r["body"].get("purpose") for r in portal.token_requests if r["body"].get("purpose") != "connectors"] == []
+
+
+def test_the_token_seam_refuses_an_inference_token_to_a_guest_without_the_trial(portal, monkeypatch):
+    import httpx
+
+    from hermes_cli.auth_constants import AuthError
+
+    as_local_desktop_backend(monkeypatch)
+    state = dict(anon_auth.ensure_portal_identity(explicit=True))  # a connector guest
+    with httpx.Client() as client, pytest.raises(AuthError):
+        anon_auth.refresh_guest_state(state, client, purpose="inference")
+
+    assert not [r for r in portal.token_requests if r["body"].get("purpose") != "connectors"]
