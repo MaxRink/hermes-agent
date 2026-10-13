@@ -214,3 +214,27 @@ test.each([null, 'local'])(
     }
   }
 )
+
+test('a stored profile whose home is gone boots default instead of a missing --profile', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'desktop-profile-missing-'))
+  const target = path.join(root, 'active-profile.json')
+  const profilesRoot = path.join(root, 'profiles')
+  fs.mkdirSync(path.join(profilesRoot, 'work'), { recursive: true })
+
+  const preferences = createDesktopProfilePreferences(target, {
+    profileExists: name => fs.existsSync(path.join(profilesRoot, name))
+  })
+
+  try {
+    preferences.remember('work')
+    assert.equal(preferences.readActive(), 'work')
+
+    preferences.remember('hermes-setup')
+    assert.equal(preferences.readActive(), null)
+
+    preferences.remember('default')
+    assert.equal(preferences.readActive(), 'default')
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})

@@ -24,6 +24,7 @@ import {
   $freshSessionRequest,
   $newChatProfile,
   $newChatRoute,
+  $profilesByConnection,
   $showAllProfiles,
   captureNewChatSource,
   currentNewChatIntent,
@@ -123,6 +124,14 @@ $activeConnectionProfile.subscribe(({ connectionId, descriptorProfile, profile, 
 
   $lastProfileByConnection.set({ ...$lastProfileByConnection.get(), [connectionId]: profile })
 })
+
+// The profile last used on a source, unless that source's known list no longer has it (deleted elsewhere).
+function rememberedProfile(connectionId: string): string {
+  const key = normalizeProfileKey($lastProfileByConnection.get()[connectionId])
+  const listed = $profilesByConnection.get().get(connectionId)
+
+  return !listed || listed.some(profile => normalizeProfileKey(profile.name) === key) ? key : 'default'
+}
 
 /** @internal Reset module-owned preferences and switch coordination for tests. */
 export function _resetConnectionsForTests(): void {
@@ -378,9 +387,7 @@ export async function selectConnection(connectionId: string, options: SelectConn
   const currentProfile = normalizeProfileKey($activeGatewayProfile.get())
   const explicitProfile = String(options.profile ?? '').trim()
 
-  const targetProfile = normalizeProfileKey(
-    explicitProfile || ($lastProfileByConnection.get()[connectionId] ?? 'default')
-  )
+  const targetProfile = normalizeProfileKey(explicitProfile || rememberedProfile(connectionId))
 
   const targetKey = `${connectionId}::${targetProfile}`
 

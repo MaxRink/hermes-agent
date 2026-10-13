@@ -89,6 +89,7 @@ export function createDesktopProfilePreferences(
   configPath: string,
   options: {
     onDefaultChanged?: (route: DesktopProfileRoute | null) => void
+    profileExists?: (profile: string) => boolean
     validateRoute?: (route: DesktopProfileRoute) => void
   } = {}
 ) {
@@ -125,7 +126,12 @@ export function createDesktopProfilePreferences(
     const value = read().profile
     const profile = typeof value === 'string' ? value.trim() : ''
 
-    return DESKTOP_PROFILE_NAME_RE.test(profile) ? profile : null
+    if (!DESKTOP_PROFILE_NAME_RE.test(profile)) {
+      return null
+    }
+
+    // A stored profile whose home is gone boots default: `--profile <missing>` would fail the backend.
+    return profile === 'default' || options.profileExists?.(profile) !== false ? profile : null
   }
 
   function remember(name: unknown): null | string {

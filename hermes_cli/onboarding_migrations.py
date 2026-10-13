@@ -1,0 +1,160 @@
+"""One-shot release of the agentic desktop onboarding's setup profiles.
+
+Canary/RC desktop builds made a ``hermes-setup[-noun]`` profile, marked by ``.setup-profile.json``,
+and limited its tools. This turns each one into a plain profile: the marker and the setup tool
+limits go; its sessions, credentials and memories stay. It runs at serve boot before any RPC is
+served, under a file lock, once per install (latched in the root config).
+"""
+
+from __future__ import annotations
+
+import logging
+import threading
+from pathlib import Path
+
+from hermes_cli.profiles import _iter_named_profile_dirs
+from hermes_constants import get_default_hermes_root, get_hermes_home
+
+logger = logging.getLogger(__name__)
+
+_MARKER = ".setup-profile.json"
+_RELEASED_FLAG = "setup_profile_released"  # root config onboarding.seen.<flag>
+_OLD_GUIDE_SKIPPED_FLAG = "setup_intro"  # written by the agentic build for a returning user
+_ADDED_DISABLED_KEY = "setup_disabled_toolsets"  # marker key: toolsets setup itself disabled
+# The exact deferred-tool list setup wrote; a list the user changed since is theirs and stays.
+_SETUP_DEFERRED_TOOLS = [
+    "computer_use", "session_search", "image_generate", "todo_list", "process_manage", "cronjob_manage",
+    "drive_preview", "desktop_preview", "annotate_preview", "show_tip", "desktop_project",
+    "close_terminal", "read_terminal", "read_window_below", "focus_pane", "react_to_message",
+]
+_RETIRED_SKILLS = ("initiate-setup", "first-task")
+_lock_holder = threading.local()
+
+
+def release_setup_profiles() -> None:
+    """Release every setup profile under the root, map the old guide's outcome onto ``onboarding.run``,
+    and uninstall the two retired skills. A no-op once latched, and when this backend runs inside a
+    setup profile (it never rewrites its own live home; a launch from another profile does it)."""
+    from agent.onboarding import is_seen, mark_seen
+    from hermes_cli.auth import _file_lock
+    from hermes_cli.config import read_user_config_raw
+
+    if (get_hermes_home() / _MARKER).is_file():
+        return
+    root = get_default_hermes_root()
+    config_path = root / "config.yaml"
+    with _file_lock(root / ".setup-profile-release.lock", _lock_holder, 5.0,
+                    "another backend is releasing the setup profile"):
+        if is_seen(read_user_config_raw(config_path), _RELEASED_FLAG):
+            return
+        marked = {path: _read_marker(path) for path in _iter_named_profile_dirs() if (path / _MARKER).is_file()}
+        if _old_guide_done(marked.values(), config_path):
+            _settle_run(config_path)
+        for path, marker in marked.items():
+            _share_identity(path)
+            _release(path, marker)
+        for home in (root, *_iter_named_profile_dirs()):
+            _uninstall_retired_skills(home)
+        mark_seen(config_path, _RELEASED_FLAG)
+
+
+def _read_marker(path: Path) -> dict:
+    from utils import read_json_or_empty
+    return read_json_or_empty(path / _MARKER)
+
+
+def _old_guide_done(markers, config_path: Path) -> bool:
+    """The user finished or skipped the agentic guide, so the questionnaire must not open for them."""
+    from agent.onboarding import is_seen
+    from hermes_cli.config import read_user_config_raw
+
+    if any(marker.get("intro") == "seen" or marker.get("completed_at") for marker in markers):
+        return True
+    return any(is_seen(read_user_config_raw(path), _OLD_GUIDE_SKIPPED_FLAG)
+               for path in {config_path, get_hermes_home() / "config.yaml"})
+
+
+def _settle_run(config_path: Path) -> None:
+    """``onboarding.run = false`` unless the root config already says what it wants."""
+    from hermes_cli.config import read_user_config_raw
+
+    section = read_user_config_raw(config_path).get("onboarding")
+    if not isinstance(section, dict) or not isinstance(section.get("run"), bool):
+        _write_run(config_path, False)
+
+
+def _write_run(config_path: Path, value: bool) -> None:
+    """Persist the root ``onboarding.run`` as one write, keeping every other key and comment."""
+    from hermes_cli import config as config_mod
+
+    with config_mod._CONFIG_LOCK:
+        config = config_mod.read_user_config_raw(config_path)
+        config_mod._ensure_dict(config, "onboarding")["run"] = value
+        config_mod.atomic_config_write(config_path, config)
+
+
+def _share_identity(profile: Path) -> None:
+    """A guest or sign-in made inside the setup profile becomes the install's shared Nous identity
+    when the shared store has none (the shared store stays the identity of record otherwise)."""
+    from hermes_cli.auth import _load_auth_store, _provider_state_in
+    from hermes_cli.auth_nous import _nous_shared_store_lock, _read_shared_nous_state, _write_shared_nous_state
+
+    state = _provider_state_in(_load_auth_store(profile / "auth.json"), "nous")
+    if not state:
+        return
+    with _nous_shared_store_lock():
+        if _read_shared_nous_state() is None:
+            _write_shared_nous_state(state)
+
+
+def _release(profile: Path, marker: dict) -> None:
+    """Drop the marker and the tool limits setup gave the profile: the cli toolset grant, the toolsets
+    setup itself disabled (the user's own disabled toolsets stay) and its deferred-tool list."""
+    from agent.skill_utils import parse_config_string_list
+    from hermes_cli.config import atomic_config_replace, read_user_config_raw
+
+    config_path = profile / "config.yaml"
+    if config_path.is_file():
+        config = read_user_config_raw(config_path)
+        _set_key(config, "platform_toolsets", "cli", None)
+        added = set(marker.get(_ADDED_DISABLED_KEY) or [])
+        disabled = [name for name in parse_config_string_list((config.get("agent") or {}).get("disabled_toolsets"))
+                    if name not in added]
+        _set_key(config, "agent", "disabled_toolsets", disabled or None)
+        if ((config.get("tools") or {}).get("tool_search") or {}).get("defer") == _SETUP_DEFERRED_TOOLS:
+            _set_key(config, "tools", "tool_search", None)
+        atomic_config_replace(config_path, config)
+    (profile / _MARKER).unlink(missing_ok=True)
+    logger.info("released the setup profile %s; its chats, credentials and memories stay", profile.name)
+
+
+def _set_key(config: dict, section: str, key: str, value) -> None:
+    """``config[section][key] = value``; ``None`` removes the key, and the section with its last key."""
+    entries = dict(config.get(section) or {})
+    if value is None:
+        entries.pop(key, None)
+    else:
+        entries[key] = value
+    if entries:
+        config[section] = entries
+    else:
+        config.pop(section, None)
+
+
+def _uninstall_retired_skills(home: Path) -> None:
+    """Hand-installed copies of the two retired onboarding skills would become live broken commands."""
+    from utils import read_json_or_empty
+
+    installed = read_json_or_empty(home / "skills" / ".hub" / "lock.json").get("installed") or {}
+    retired = [name for name in _RETIRED_SKILLS if name in installed]
+    if not retired:
+        return
+    from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+    from tools.skills_hub_install import uninstall_skill
+
+    token = set_hermes_home_override(home)
+    try:
+        for name in retired:
+            logger.info("%s", uninstall_skill(name)[1])
+    finally:
+        reset_hermes_home_override(token)

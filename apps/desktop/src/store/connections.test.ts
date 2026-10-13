@@ -11,6 +11,7 @@ const $activeGatewayProfile = atom('default')
 const $newChatProfile = atom<null | string>(null)
 const $freshSessionRequest = atom(0)
 const $showAllProfiles = atom(false)
+const $profilesByConnection = atom<ReadonlyMap<string, { name: string }[]>>(new Map())
 
 const $connection = atom<null | {
   connectionId?: string
@@ -74,6 +75,7 @@ vi.mock('@/store/profile', () => ({
   $freshSessionRequest,
   $newChatProfile,
   $newChatRoute: atom(null),
+  $profilesByConnection,
   $showAllProfiles,
   captureNewChatSource: vi.fn(),
   currentNewChatIntent: () => 0,
@@ -118,6 +120,7 @@ beforeEach(() => {
   $activeGatewayProfile.set('default')
   $newChatProfile.set(null)
   $showAllProfiles.set(false)
+  $profilesByConnection.set(new Map())
   ensureGatewayAgent.mockReset()
   // Mirrors the real door: the commit hook runs right before the activation
   // publishes, and a declined hook publishes nothing.
@@ -369,6 +372,19 @@ describe('selectConnection', () => {
     await selectConnection('local')
 
     expect(ensureGatewayAgent).toHaveBeenCalledWith('local', 'research', expect.anything())
+  })
+
+  it('lands on default when the profile last used on a source is gone from its list', async () => {
+    setConnectionsRegistry(registry)
+    $connection.set({ connectionId: 'local', mode: 'local', profile: 'hermes-setup', registryScoped: true })
+    $activeGatewayProfile.set('hermes-setup')
+    $connection.set({ connectionId: 'homelab', mode: 'remote', registryScoped: true })
+    $activeGatewayProfile.set('default')
+    $profilesByConnection.set(new Map([['local', [{ name: 'default' }, { name: 'work' }]]]))
+
+    await selectConnection('local')
+
+    expect(ensureGatewayAgent).toHaveBeenCalledWith('local', 'default', expect.anything())
   })
 
   it('does not remember a migrated v1 routing alias as a backend profile', async () => {
