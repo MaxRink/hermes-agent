@@ -54,7 +54,7 @@ import { $interfaceMode, shownInMode } from '@/store/interface-mode'
 import { $pinnedSessionIds, pinSession, restoreWorktree, unpinSession } from '@/store/layout'
 import { notifyError } from '@/store/notifications'
 import { markOnboardingDecided } from '@/store/onboarding-presence'
-import { decideOnboarding } from '@/store/onboarding-run'
+import { $onboardingChatOpener, decideOnboarding } from '@/store/onboarding-run'
 import { $poolLimitsSettingsRequest } from '@/store/pool-limits'
 import { $previewTarget } from '@/store/preview'
 import {
@@ -633,6 +633,17 @@ export function ContribWiring({ children }: { children: ReactNode }) {
       void decideOnboarding(requestGateway, adoptSessionRoute, { intro: firstRunIntro() })
     }
   }, [adoptSessionRoute, gatewayState, requestGateway])
+
+  // Settings' Run onboarding again opens its chat the way the launch does.
+  useEffect(() => {
+    if (!isMainWindow()) {
+      return
+    }
+
+    $onboardingChatOpener.set(adoptSessionRoute)
+
+    return () => $onboardingChatOpener.set(null)
+  }, [adoptSessionRoute])
 
   // "New project" DRAG completion: the dialog created a project that was
   // dropped onto a chat zone (tab-strip slot / pane edge / pane center). Open

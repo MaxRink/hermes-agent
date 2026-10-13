@@ -41,6 +41,10 @@ const NO_DEADLINE = 0
 /** Opens a stored session on screen, replacing the route (`useSessionActions().resumeSession`). */
 export type OnboardingResume = (storedId: string, replaceRoute?: boolean) => Promise<void>
 
+/** Opens a stored chat on screen the way the launch does (`wiring.tsx::adoptSessionRoute`); the main
+ *  window's shell sets it. Settings' Run onboarding again opens its chat through it. */
+export const $onboardingChatOpener = atom<null | OnboardingResume>(null)
+
 /** How the last run in this window ended; the end-of-onboarding surfaces wake on it. */
 export const $onboardingEnded = atom<'done' | 'skipped' | null>(null)
 

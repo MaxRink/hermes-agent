@@ -117,7 +117,7 @@ function ConnectingOverlayView({ decoding, onExit, phase }: ConnectingOverlayVie
  * Held until the app knows whether onboarding runs, so the chat never flashes before it; the due
  * check has its own short deadline (`decideOnboarding`). Once onboarding runs, the first-run intro's
  * `starting` screen is this overlay and stays up until its chat is open, offering a way out when the
- * start is slow.
+ * start is slow. A rerun from Settings brings that screen back after boot.
  */
 function useOnboardingHold(previewing: boolean) {
   const onboardingDecided = useStore($onboardingDecided)
@@ -129,6 +129,7 @@ function useOnboardingHold(previewing: boolean) {
 
   return {
     holds: introStarting || (watching && !onboardingDecided),
+    introStarting,
     onExit: introStarting ? introStartExit : null
   }
 }
@@ -138,7 +139,7 @@ export function GatewayConnectingOverlay() {
   const boot = useStore($desktopBoot)
   const gatewaySwitching = useStore($gatewaySwitching)
   const [previewing] = useState(forcedPreview)
-  const { holds: onboardingHolds, onExit } = useOnboardingHold(previewing)
+  const { holds: onboardingHolds, introStarting, onExit } = useOnboardingHold(previewing)
   const reduce = prefersReducedMotion()
   // Under reduced motion, skip the multi-phase exit choreography (text-out →
   // hold → overlay fade) and jump straight to gone so the overlay unmounts
@@ -160,9 +161,16 @@ export function GatewayConnectingOverlay() {
   // kicks in doesn't unmount us and cause a flash.
   const shownRef = useRef(false)
 
-  if (previewing || connecting) {
+  // Run onboarding again (Settings) brings the starting screen back over an app that already booted.
+  if (previewing || connecting || introStarting) {
     shownRef.current = true
   }
+
+  useEffect(() => {
+    if (introStarting && phase !== 'live') {
+      setPhase('live')
+    }
+  }, [introStarting, phase])
 
   // Kick off the exit when connected: real connect, or a faked timer in preview.
   useEffect(() => {

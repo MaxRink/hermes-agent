@@ -47,6 +47,10 @@ function sizedBounds(mode: WindowSizeMode, bounds: Rectangle, workArea: Rectangl
   return width === bounds.width && height === bounds.height ? null : centeredBounds(workArea, width, height)
 }
 
+// The bounds each window had when onboarding sized it. Normal puts them back, so an intro replayed
+// from Settings leaves an existing user's window where it was.
+const beforeOnboarding = new WeakMap<BrowserWindow, Rectangle>()
+
 export function registerWindowSizing({ enabled, mainWindow }: WindowSizingOptions): void {
   ipcMain.on('hermes:window:size', (event, mode: WindowSizeMode) => {
     const win = mainWindow()
@@ -55,11 +59,28 @@ export function registerWindowSizing({ enabled, mainWindow }: WindowSizingOption
       return
     }
 
-    if ((mode !== 'normal' && mode !== 'onboarding') || win.isMaximized() || win.isFullScreen()) {
+    if (mode !== 'normal' && mode !== 'onboarding') {
+      return
+    }
+
+    const before = beforeOnboarding.get(win)
+    beforeOnboarding.delete(win)
+
+    if (win.isMaximized() || win.isFullScreen()) {
       return
     }
 
     const bounds = win.getBounds()
+
+    if (mode === 'onboarding') {
+      beforeOnboarding.set(win, bounds)
+    } else if (before) {
+      // The user's own placement, not one this module chose: window-state.json saves it.
+      win.setBounds(before, true)
+
+      return
+    }
+
     const next = sizedBounds(mode, bounds, screen.getDisplayMatching(bounds).workArea)
 
     if (next) {

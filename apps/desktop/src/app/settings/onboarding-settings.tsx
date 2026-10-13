@@ -1,13 +1,12 @@
 import { useState } from 'react'
 
 import { useGatewayRequest } from '@/app/gateway/hooks/use-gateway-request'
-import { sessionRoute } from '@/app/routes'
+import { firstRunIntro } from '@/components/onboarding/first-run/kickoff'
 import { Button } from '@/components/ui/button'
 import { useI18n } from '@/i18n'
 import { isOnboardingEnabled } from '@/lib/onboarding-enabled'
 import { notifyError } from '@/store/notifications'
-import { startOnboarding } from '@/store/onboarding-run'
-import { requestRoute } from '@/store/recovery-requests'
+import { $onboardingChatOpener, startOnboarding } from '@/store/onboarding-run'
 
 import { ListRow } from './primitives'
 
@@ -24,9 +23,12 @@ function RerunOnboardingRow() {
   const rerun = async () => {
     setStarting(true)
 
-    const started = await startOnboarding(requestGateway, async storedId => requestRoute(sessionRoute(storedId)), {
-      rerun: true
-    })
+    // The whole first-run experience again: the boot overlay, the onboarding-sized window, the demo
+    // layout and the intro, in a new chat opened the way the launch opens it.
+    const open = $onboardingChatOpener.get()
+
+    const started =
+      open !== null && (await startOnboarding(requestGateway, open, { intro: firstRunIntro(), rerun: true }))
 
     setStarting(false)
 
