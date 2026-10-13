@@ -794,10 +794,7 @@ def _invoke_agent(
     if turn_author and "turn_author" in run_params:
         run_kwargs["turn_author"] = turn_author
     if "prelude" in run_params:
-        from agent.initiate_setup_prompt import initiate_setup_prelude
-        prelude = initiate_setup_prelude(
-            text, _resolve_agent_platform(_session_source(session)), agent.valid_tool_names, st.history,
-        ) or _onboarding_prelude(agent, st.history)
+        prelude = _onboarding_prelude(agent, st.history)
         if prelude is not None:
             run_kwargs["prelude"] = prelude
     _adopt_submit_user_row(session, agent, run_kwargs["persist_user_message"], text)

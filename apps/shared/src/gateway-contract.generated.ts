@@ -4488,25 +4488,6 @@ export interface ClarifyQuestion {
 export interface ClarifyResult {
   answers?: Record<string, string | null> | null
 }
-export interface SetupChooseRequestParams {
-  session_id: string
-  kind: SetupChooseKind
-  question: string
-  options?: SetupChooseOption[] | null
-  multi_select?: boolean
-  preselected?: string[] | null
-}
-export type SetupChooseKind = 'question' | 'accent' | 'theme' | 'layout' | 'connectors' | 'plugins' | 'tour' | 'fork' | 'machine_use'
-export interface SetupChooseOption {
-  id: string
-  label: string
-  detail?: string | null
-}
-export interface SetupChooseResult {
-  picked?: string | string[] | null
-  label?: string | string[] | null
-  said?: string | null
-}
 /** ``card`` is the beat's data (``agent/onboarding_flow.py::BEATS``): name, theme, connectors and plugins have their own shape; layout, tour and build carry ``options``. ``tool_call_id`` is the setup_beat call the card belongs to: only that transcript row draws it. */
 export interface SetupBeatRequestParams {
   session_id: string
@@ -5925,7 +5906,6 @@ export interface ServerRequestMap {
   secret: { params: SecretRequestParams; result: ValueResult }
   /** The onboarding chat's card for one beat; blocks setup_beat until answered (300 s). */
   setup_beat: { params: SetupBeatRequestParams; result: SetupBeatResult }
-  setup_choose: { params: SetupChooseRequestParams; result: SetupChooseResult }
   /** Masked sudo password for the terminal tool. */
   sudo: { params: SudoRequestParams; result: ValueResult }
   /** Read the visible in-app terminal buffer (JSON text answer). */
@@ -5954,7 +5934,6 @@ export const SERVER_REQUEST_METHODS = [
   'preview.read',
   'secret',
   'setup_beat',
-  'setup_choose',
   'sudo',
   'terminal.read',
   'theme.apply',

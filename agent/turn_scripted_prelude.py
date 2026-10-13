@@ -1,7 +1,7 @@
 """Scripted prelude: tool calls a prompt built-in plays before the turn's first model call.
 
-A prelude is a generator owned by the built-in (``agent.initiate_setup_prompt.initiate_setup_prelude``
-is the one today). Each step it yields ``(content, tool_name, args)``: the assistant text and the one
+A prelude is a generator owned by the caller that starts the turn (the desktop onboarding opening is the
+intended one). Each step it yields ``(content, tool_name, args)``: the assistant text and the one
 tool call that row carries. The loop runs it through the unchanged ``run_tool_round`` (row persisted
 before the tool runs, interim text and tool events emitted, tool hooks fired) and sends the tool's
 result string back into the generator, so a later step can use an earlier answer.
