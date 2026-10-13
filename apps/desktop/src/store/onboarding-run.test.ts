@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { setPrimaryGatewayConnectionId } from './gateway'
 import { $onboardingPhase } from './onboarding-phase'
 import { $onboardingDecided, $onboardingSurfaceClear } from './onboarding-presence'
 import {
@@ -46,6 +47,7 @@ function backend(state: { eligible: boolean; run: boolean }, runId: null | strin
 beforeEach(() => {
   // SAFETY: factsSource reads only `mode`; a local connection skips the machine comparison.
   $connection.set({ mode: 'local' } as never)
+  setPrimaryGatewayConnectionId('local')
   $onboardingPhase.set('idle')
   $onboardingEnded.set(null)
   $onboardingSettleFrom.set(null)
@@ -150,6 +152,22 @@ describe('onboarding run', () => {
     await reconcileOnboarding(open)
     expect($onboardingPhase.get()).toBe('shown')
     await reconcileOnboarding(reread)
+    expect($onboardingEnded.get()).toBe('skipped')
+  })
+
+  it('keeps the run while the window reads another computer, and re-reads on its own', async () => {
+    const { request } = backend({ eligible: true, run: true })
+    await startOnboarding(request, resume, { ensureProfile })
+
+    // SAFETY: the fake answers onboarding.state with its contract result shape.
+    const noRun = async <T,>(): Promise<T> => ({ eligible: true, run: false, run_id: null, session_id: null }) as T
+
+    setPrimaryGatewayConnectionId('homelab')
+    await reconcileOnboarding(noRun)
+    expect($onboardingPhase.get()).toBe('shown')
+
+    setPrimaryGatewayConnectionId('local')
+    await reconcileOnboarding(noRun)
     expect($onboardingEnded.get()).toBe('skipped')
   })
 

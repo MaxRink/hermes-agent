@@ -706,7 +706,7 @@ describe('assistant-ui streaming renderer', () => {
 
   it('keeps streaming reasoning collapsed in the onboarding chat', () => {
     $activeSessionId.set('onboarding-chat')
-    $onboardingSession.set({ runId: 'run-1', runtimeId: 'onboarding-chat', storedId: 'stored-onboarding' })
+    $onboardingSession.set({ connectionId: null, runId: 'run-1', runtimeId: 'onboarding-chat', storedId: 'stored-onboarding' })
     $onboardingPhase.set('shown')
 
     const { container } = render(<RunningReasoningHarness />)

@@ -44,7 +44,7 @@ function parkCard(requestId: string, open = true, beat: 'layout' | 'name' = 'nam
 beforeEach(() => {
   // A run is shown whenever its chat is named (startOnboarding).
   $onboardingPhase.set('shown')
-  $onboardingSession.set({ runId: 'run-1', runtimeId: 'rt-1', storedId: 'stored-1' })
+  $onboardingSession.set({ connectionId: null, runId: 'run-1', runtimeId: 'rt-1', storedId: 'stored-1' })
 })
 
 afterEach(() => {

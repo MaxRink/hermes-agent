@@ -913,7 +913,12 @@ describe('useComposerSubmit with a setup card waiting in the onboarding chat', (
 
   it('closes the card unanswered and sends the words as the next turn, never into the card turn', () => {
     $onboardingPhase.set('shown')
-    $onboardingSession.set({ runId: 'run-1', runtimeId: 'runtime-session', storedId: 'stored-session' })
+    $onboardingSession.set({
+      connectionId: null,
+      runId: 'run-1',
+      runtimeId: 'runtime-session',
+      storedId: 'stored-session'
+    })
     const respond = parkCard('layout')
 
     const { hook, onSteer, onSubmit, queueCurrentDraft } = renderSubmitHook({
@@ -935,7 +940,12 @@ describe('useComposerSubmit with a setup card waiting in the onboarding chat', (
 
   it('takes words typed on the name card as the name, and sends no message', () => {
     $onboardingPhase.set('shown')
-    $onboardingSession.set({ runId: 'run-1', runtimeId: 'runtime-session', storedId: 'stored-session' })
+    $onboardingSession.set({
+      connectionId: null,
+      runId: 'run-1',
+      runtimeId: 'runtime-session',
+      storedId: 'stored-session'
+    })
     const respond = parkCard('name')
 
     const { clearDraft, hook, onSteer, onSubmit, queueCurrentDraft } = renderSubmitHook({ busy: true, text: 'Sid' })

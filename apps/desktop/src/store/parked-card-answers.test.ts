@@ -59,7 +59,7 @@ describe('parked card answers', () => {
 
     // A run is shown whenever its chat is named (startOnboarding).
     $onboardingPhase.set('shown')
-    $onboardingSession.set({ runId: 'run-1', runtimeId: 'session-a', storedId: 'stored-a' })
+    $onboardingSession.set({ connectionId: null, runId: 'run-1', runtimeId: 'session-a', storedId: 'stored-a' })
     expect($waiting.get()).toBe(true)
     expect(answerParkedCard('session-a', 'hello')).toBe(true)
     expect(answerParkedCard('session-b', 'hello')).toBe(false)

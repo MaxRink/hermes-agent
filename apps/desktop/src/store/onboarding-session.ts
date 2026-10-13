@@ -4,6 +4,8 @@ import { $onboardingPhase } from './onboarding-phase'
 import { $sessionTiles, storedSessionIdForRuntimeId } from './session-states'
 
 export interface OnboardingSession {
+  /** The computer the run lives on (`activeGatewayConnectionId()` at its start); only its backend knows the run. */
+  connectionId: null | string
   /** Names the run in `onboarding.ended` and `onboarding.state`. */
   runId: string
   runtimeId: string

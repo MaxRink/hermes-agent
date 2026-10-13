@@ -19,6 +19,7 @@ import { getRuntimeI18nLocale } from '@/i18n/runtime'
 import type { GatewayRequester } from '@/lib/yolo-session'
 
 import { ackFreeTierNotice } from './free-tier'
+import { activeGatewayConnectionId } from './gateway'
 import { clearFreeTierIntro } from './onboarding'
 import { $onboardingPhase } from './onboarding-phase'
 import { markOnboardingDecided, ONBOARDING_DECIDE_DEADLINE_MS, setOnboardingSurfaceActive } from './onboarding-presence'
@@ -130,6 +131,7 @@ export async function startOnboarding(
 
   try {
     await ensureProfile(ONBOARDING_PROFILE)
+    const connectionId = activeGatewayConnectionId()
 
     // The request stays alive past the way out: its answer names the run the skip ends.
     const started = await request<OnboardingStartResult>(
@@ -148,7 +150,12 @@ export async function startOnboarding(
 
     // The chat is on screen before the run names it, so the presence never sees a gap.
     await resume(started.stored_session_id, true)
-    $onboardingSession.set({ runId: started.run_id, runtimeId: started.session_id, storedId: started.stored_session_id })
+    $onboardingSession.set({
+      connectionId,
+      runId: started.run_id,
+      runtimeId: started.session_id,
+      storedId: started.stored_session_id
+    })
     watchRunEnd(request)
 
     if (intro) {
@@ -255,11 +262,12 @@ export function noteOnboardingEnded({ outcome, run_id }: OnboardingEndedPayload)
 }
 
 /** An end this window missed (a reconnect, a backend restart): the run it shows is no longer the run
- *  in progress. */
+ *  in progress. Only the run's own computer can say so; while the window is on another one, the
+ *  reconnect that brings it back re-reads. */
 export async function reconcileOnboarding(request: OnboardingRequest): Promise<void> {
   const session = $onboardingSession.get()
 
-  if (!session || $onboardingPhase.get() !== 'shown') {
+  if (!session || $onboardingPhase.get() !== 'shown' || activeGatewayConnectionId() !== session.connectionId) {
     return
   }
 
