@@ -1316,10 +1316,31 @@ def _delivery_receipt(
 
 
 def _delivery_has_evidence(result) -> bool:
-    """Return whether an adapter result contains positive platform evidence."""
-    return (
-        _result_field(result, "message_id") is not None
-        or bool(_result_field(result, "raw_response"))
+    """Return whether an adapter result contains *positive* platform evidence.
+
+    A truthy response is not an acknowledgement: Telegram (and standalone
+    adapters) can return an error-shaped payload such as ``{"ok": False}``
+    while the wrapper still reports a result.  Receipts must therefore only
+    accept an actual message id or a provider response with an explicit
+    positive acknowledgement.  This deliberately remains stricter than the
+    live delivery compatibility contract, which still accepts a bare success
+    but records it as unverified.
+    """
+    message_id = _result_field(result, "message_id")
+    if message_id is not None and not isinstance(message_id, bool) and str(message_id).strip():
+        return True
+    raw = _result_field(result, "raw_response")
+    if not isinstance(raw, dict):
+        return False
+    if raw.get("ok") is True:
+        return True
+    raw_message_id = raw.get("message_id")
+    if raw_message_id is not None and not isinstance(raw_message_id, bool) and str(raw_message_id).strip():
+        return True
+    raw_message_ids = raw.get("message_ids")
+    return isinstance(raw_message_ids, (list, tuple)) and any(
+        item is not None and not isinstance(item, bool) and str(item).strip()
+        for item in raw_message_ids
     )
 
 
@@ -1877,11 +1898,13 @@ def _deliver_standalone(
         return
     result, err = _standalone_send(t, content, media_files)
     if delivery_receipts is not None:
-        if result is None and err is None:
-            receipt_outcome = "unknown"
-        elif err is None and isinstance(result, dict) and result.get("error"):
+        if err is not None:
             receipt_outcome = "failure"
-        elif err is None and _delivery_has_evidence(result):
+        elif result is None:
+            receipt_outcome = "unknown"
+        elif isinstance(result, dict) and result.get("error"):
+            receipt_outcome = "failure"
+        elif _delivery_has_evidence(result):
             receipt_outcome = "success"
         else:
             receipt_outcome = "unknown"

@@ -74,6 +74,14 @@ class TestConfirmAdapterDelivery:
             assert _confirm_adapter_delivery(result, "j1") is True
         assert "UNVERIFIED" not in caplog.text
 
+    def test_negative_raw_response_is_not_receipt_evidence(self):
+        result = _SendResult(raw_response={"ok": False, "description": "provider rejected"})
+        assert sched_delivery._delivery_has_evidence(result) is False
+
+    def test_truthy_error_shaped_raw_response_is_not_receipt_evidence(self):
+        result = _SendResult(raw_response={"error": {"code": 429}})
+        assert sched_delivery._delivery_has_evidence(result) is False
+
     def test_evidence_free_success_is_accepted_but_warned(self, caplog):
         """Not proof of failure either — accept it, but say so in the log."""
         with caplog.at_level(logging.WARNING, logger="cron.scheduler"):
@@ -388,6 +396,30 @@ class TestUnverifiedDeliveryIsRecordedOnTheJob:
         receipt = sched_delivery._delivery_receipt(_job(), "telegram", result, outcome="failure")
         assert receipt["error_class"] == "unknown_error"
         assert "provider-secret-token" not in str(receipt)
+
+    def test_negative_raw_response_does_not_claim_success(self):
+        result = _SendResult(raw_response={"ok": False, "description": "private provider body"})
+        error, _, _ = _run(_job(), "Nightly report.", None, standalone_result={
+            "raw_response": result.raw_response,
+        })
+        assert error is None
+        assert RECORDED_VERIFICATION[0][2][-1]["outcome"] == "unknown"
+
+    def test_standalone_transport_error_is_failure(self):
+        async def _fail(*_args, **_kwargs):
+            raise RuntimeError("private transport detail")
+
+        RECORDED_VERIFICATION.clear()
+        with patch("gateway.config.load_gateway_config", return_value=_gateway_config()), \
+             patch("cron.scheduler.load_config", return_value={"cron": {"wrap_response": False}}), \
+             patch("cron.scheduler_delivery._record_delivery_verification", side_effect=_record_verification), \
+             patch("tools.send_message_tool._send_to_platform", _fail):
+            error = _deliver_result(_job(), "Nightly report.")
+        assert error is not None
+        receipt = RECORDED_VERIFICATION[0][2][-1]
+        assert receipt["outcome"] == "failure"
+        assert receipt["error_class"] == "standalone_error"
+        assert "private" not in str(receipt)
 
 
     def test_recorder_clears_a_stale_marker(self):
