@@ -1332,6 +1332,8 @@ def _delivery_has_evidence(result) -> bool:
     raw = _result_field(result, "raw_response")
     if not isinstance(raw, dict):
         return False
+    if raw.get("error") not in (None, "", False):
+        return False
     if raw.get("ok") is True:
         return True
     raw_message_id = raw.get("message_id")
