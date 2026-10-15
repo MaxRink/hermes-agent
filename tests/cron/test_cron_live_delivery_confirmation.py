@@ -86,6 +86,18 @@ class TestConfirmAdapterDelivery:
         result = _SendResult(raw_response={"ok": True, "error": "rejected"})
         assert sched_delivery._delivery_has_evidence(result) is False
 
+    def test_negative_raw_ack_overrides_raw_message_id(self):
+        result = _SendResult(raw_response={"ok": False, "message_id": 123})
+        assert sched_delivery._delivery_has_evidence(result) is False
+
+    def test_wrapper_error_overrides_wrapper_message_id_and_negative_raw_ack(self):
+        result = _SendResult(
+            success=True, message_id=123,
+            raw_response={"ok": False, "error": "rejected"},
+            error="provider rejected",
+        )
+        assert sched_delivery._delivery_has_evidence(result) is False
+
     def test_evidence_free_success_is_accepted_but_warned(self, caplog):
         """Not proof of failure either — accept it, but say so in the log."""
         with caplog.at_level(logging.WARNING, logger="cron.scheduler"):

@@ -1326,13 +1326,18 @@ def _delivery_has_evidence(result) -> bool:
     live delivery compatibility contract, which still accepts a bare success
     but records it as unverified.
     """
+    # Explicit negative/error state wins over any identifier the wrapper may
+    # have retained from a partial or rejected provider response.
+    if _result_field(result, "success") is False or _result_field(result, "error") not in (None, "", False):
+        return False
+    raw = _result_field(result, "raw_response")
+    if isinstance(raw, dict):
+        if raw.get("ok") is False or raw.get("error") not in (None, "", False):
+            return False
     message_id = _result_field(result, "message_id")
     if message_id is not None and not isinstance(message_id, bool) and str(message_id).strip():
         return True
-    raw = _result_field(result, "raw_response")
     if not isinstance(raw, dict):
-        return False
-    if raw.get("error") not in (None, "", False):
         return False
     if raw.get("ok") is True:
         return True
