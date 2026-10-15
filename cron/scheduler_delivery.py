@@ -1328,7 +1328,9 @@ def _delivery_has_evidence(result) -> bool:
     """
     # Explicit negative/error state wins over any identifier the wrapper may
     # have retained from a partial or rejected provider response.
-    if _result_field(result, "success") is False or _result_field(result, "error") not in (None, "", False):
+    if (_result_field(result, "success") is False
+            or _result_field(result, "ok") is False
+            or _result_field(result, "error") not in (None, "", False)):
         return False
     raw = _result_field(result, "raw_response")
     if isinstance(raw, dict):

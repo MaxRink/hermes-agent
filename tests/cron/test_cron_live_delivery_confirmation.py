@@ -98,6 +98,9 @@ class TestConfirmAdapterDelivery:
         )
         assert sched_delivery._delivery_has_evidence(result) is False
 
+    def test_wrapper_negative_ack_overrides_wrapper_message_id(self):
+        assert sched_delivery._delivery_has_evidence({"ok": False, "message_id": 123}) is False
+
     def test_evidence_free_success_is_accepted_but_warned(self, caplog):
         """Not proof of failure either — accept it, but say so in the log."""
         with caplog.at_level(logging.WARNING, logger="cron.scheduler"):
