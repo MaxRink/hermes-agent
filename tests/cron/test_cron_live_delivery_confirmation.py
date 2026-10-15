@@ -96,6 +96,7 @@ def _job(thread_id=None):
         origin["thread_id"] = thread_id
     return {
         "id": "92e639af907f",
+        "execution_id": "exec-92e639af907f",
         "name": "Ghost Delivery",
         "deliver": "origin",
         "origin": origin,
@@ -121,13 +122,14 @@ def _adapters(relay=False):
 
 
 RECORDED_VERIFICATION = []
+_UNSET = object()
 
 
-def _record_verification(job, unverified_targets):
-    RECORDED_VERIFICATION.append((job["id"], list(unverified_targets)))
+def _record_verification(job, unverified_targets, delivery_receipts=None):
+    RECORDED_VERIFICATION.append((job["id"], list(unverified_targets), list(delivery_receipts or [])))
 
 
-def _run(job, content, send_result, relay=False, standalone_result=None, cron_cfg=None):
+def _run(job, content, send_result, relay=False, standalone_result=_UNSET, cron_cfg=None):
     """Drive ``_deliver_result`` over the live lane with a stubbed router.
 
     Returns ``(error, router_calls, standalone_calls)``. ``cron_cfg`` extends
@@ -158,7 +160,7 @@ def _run(job, content, send_result, relay=False, standalone_result=None, cron_cf
 
     async def _fake_send_to_platform(platform, pconfig, chat_id, text, **kwargs):
         standalone_calls.append({"chat_id": chat_id, "text": text, "kwargs": kwargs})
-        return standalone_result if standalone_result is not None else {}
+        return standalone_result if standalone_result is not _UNSET else {}
 
     with patch("gateway.config.load_gateway_config", return_value=_gateway_config(relay)), \
          patch("cron.scheduler.load_config",
@@ -336,12 +338,56 @@ class TestUnverifiedDeliveryIsRecordedOnTheJob:
     def test_evidence_free_ack_records_the_target(self):
         error, _, _ = _run(_job(), "Nightly report.", _SendResult())
         assert error is None
-        assert RECORDED_VERIFICATION == [("92e639af907f", [f"telegram:{CHAT_ID}"])]
+        assert RECORDED_VERIFICATION == [(
+            "92e639af907f", [f"telegram:{CHAT_ID}"], [{
+                "job_id": "92e639af907f", "execution_id": "exec-92e639af907f",
+                "platform": "telegram", "outcome": "unknown",
+            }])]
 
     def test_positive_evidence_clears_the_marker(self):
         error, _, _ = _run(_job(), "Nightly report.", _SendResult(message_id=1234))
         assert error is None
-        assert RECORDED_VERIFICATION == [("92e639af907f", [])]
+        assert RECORDED_VERIFICATION == [(
+            "92e639af907f", [], [{
+                "job_id": "92e639af907f", "execution_id": "exec-92e639af907f",
+                "platform": "telegram", "outcome": "success", "message_id": "1234",
+            }])]
+
+    def test_receipt_keeps_message_id_and_timestamp_but_no_target(self):
+        result = _SendResult(message_id=1234, raw_response={"date": 1700000000, "chat": {"id": CHAT_ID}})
+        error, _, _ = _run(_job(), "Nightly report.", result)
+        assert error is None
+        receipt = RECORDED_VERIFICATION[0][2][0]
+        assert receipt["message_id"] == "1234"
+        assert receipt["sent_at"] == 1700000000
+        assert CHAT_ID not in receipt.values()
+
+    def test_failed_result_records_bounded_error_class(self):
+        error, _, _ = _run(_job(), "Nightly report.", _SendResult(success=False, error="private provider body"))
+        receipt = RECORDED_VERIFICATION[0][2][0]
+        assert receipt["outcome"] == "failure"
+        assert receipt["error_class"] == "unconfirmed_result"
+        assert "private" not in str(receipt)
+
+    def test_missing_adapter_response_remains_unknown(self):
+        error, _, _ = _run(_job(), "Nightly report.", None, standalone_result={"error": "no response"})
+        assert error is not None
+        receipt = RECORDED_VERIFICATION[0][2][0]
+        assert receipt["outcome"] == "unknown"
+        assert receipt["error_class"] == "no_adapter_response"
+        assert "no response" not in str(receipt)
+
+    def test_standalone_absent_result_remains_unknown(self):
+        error, _, _ = _run(_job(), "Nightly report.", None, standalone_result=None)
+        assert error is None
+        receipts = RECORDED_VERIFICATION[0][2]
+        assert receipts[-1]["outcome"] == "unknown"
+
+    def test_arbitrary_error_kind_is_collapsed(self):
+        result = _SendResult(success=False, error_kind="provider-secret-token")
+        receipt = sched_delivery._delivery_receipt(_job(), "telegram", result, outcome="failure")
+        assert receipt["error_class"] == "unknown_error"
+        assert "provider-secret-token" not in str(receipt)
 
 
     def test_recorder_clears_a_stale_marker(self):

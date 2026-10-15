@@ -1925,6 +1925,8 @@ def create_job(
         "last_delivery_error": None,
         # Targets acked without message_id/raw_response (accepted but UNVERIFIED).
         "last_delivery_unverified": None,
+        # Sanitized per-platform delivery metadata; never includes target IDs or payloads.
+        "last_delivery_receipts": None,
         # Most recent failed run ({at, detail}); NOT cleared by a later success (#118354).
         "last_failure": None,
         "failure_streak": 0,
