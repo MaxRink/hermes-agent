@@ -182,3 +182,79 @@ class TestCollectMemoryStatus:
         status = collect_memory_status(tmp_path, now=_NOW)
         assert status["pressure"] == "unknown"
         assert status["gateway_rss_mb"] is None
+
+
+def test_reads_cgroup_v2_and_v1(tmp_path: Path) -> None:
+    from gateway import lifecycle_ledger
+
+    v2 = tmp_path / "fixture-v2"
+    (v2).mkdir()
+    (v2 / "memory.max").write_text(str(4 * 1024**3), encoding="ascii")
+    (v2 / "memory.current").write_text(str(512 * 1024**2), encoding="ascii")
+    assert lifecycle_ledger._read_cgroup_memory(tmp_path / "fixture-v2") == {
+        "total_bytes": 4 * 1024**3,
+        "available_bytes": 3584 * 1024**2,
+    }
+    v1 = tmp_path / "fixture-v1"
+    (v1 / "memory").mkdir(parents=True)
+    (v1 / "memory/memory.limit_in_bytes").write_text(str(4 * 1024**3), encoding="ascii")
+    (v1 / "memory/memory.usage_in_bytes").write_text(str(3900 * 1024**2), encoding="ascii")
+    assert lifecycle_ledger._read_cgroup_memory(v1)["total_bytes"] == 4 * 1024**3
+
+
+def test_gateway_sample_persists_cgroup_for_separate_dashboard(monkeypatch) -> None:
+    from gateway import lifecycle_ledger
+
+    monkeypatch.setattr(lifecycle_ledger, "_proc_fields", lambda *args, **kwargs: {})
+    monkeypatch.setattr(lifecycle_ledger, "_read_cgroup_memory", lambda: {
+        "total_bytes": 4 * 1024**3, "available_bytes": 3 * 1024**3})
+    sample = lifecycle_ledger.sample_memory()
+    assert sample["cgroup_total_bytes"] == 4 * 1024**3
+    assert sample["cgroup_available_bytes"] == 3 * 1024**3
+
+
+def test_container_headroom_suppresses_host_fraction_warning(tmp_path: Path, monkeypatch) -> None:
+    from gateway import memory_status
+
+    home = tmp_path / "home"
+    state = home / "state"
+    state.mkdir(parents=True)
+    now = datetime.now(UTC)
+    (state / "gateway.heartbeat").write_text(json.dumps({
+        "updated_at": now.isoformat(),
+        "mem": {"rss_kib": 100, "mem_total_kib": 2_000_000,
+                "mem_available_kib": 200_000, "swap_used_kib": 0,
+                "cgroup_total_bytes": 4 * 1024**3,
+                "cgroup_available_bytes": 3 * 1024**3},
+    }), encoding="utf-8")
+    monkeypatch.setattr(memory_status, "_read_state_files",
+                        lambda _: (json.loads((state / "gateway.heartbeat").read_text()), None))
+    status = memory_status.collect_memory_status(home, now=now)
+    assert status["host_pressure"] == "elevated"
+    assert status["host_absolute_danger"] is False
+    assert status["container_pressure"] == "ok"
+    assert status["pressure"] == "ok"
+    assert status["container_available_mb"] == 3072
+
+
+def test_absolute_host_danger_overrides_container_headroom(tmp_path: Path, monkeypatch) -> None:
+    from gateway import memory_status
+
+    home = tmp_path / "home"
+    state = home / "state"
+    state.mkdir(parents=True)
+    now = datetime.now(UTC)
+    (state / "gateway.heartbeat").write_text(json.dumps({
+        "updated_at": now.isoformat(),
+        "mem": {"rss_kib": 100, "mem_total_kib": 2_000_000,
+                "mem_available_kib": 100_000, "swap_used_kib": 0,
+                "cgroup_total_bytes": 4 * 1024**3,
+                "cgroup_available_bytes": 3 * 1024**3},
+    }), encoding="utf-8")
+    monkeypatch.setattr(memory_status, "_read_state_files",
+                        lambda _: (json.loads((state / "gateway.heartbeat").read_text()), None))
+    status = memory_status.collect_memory_status(home, now=now)
+    assert status["host_pressure"] == "elevated"
+    assert status["host_absolute_danger"] is True
+    assert status["container_pressure"] == "ok"
+    assert status["pressure"] == "critical"
