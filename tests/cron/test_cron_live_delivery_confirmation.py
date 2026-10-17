@@ -74,6 +74,18 @@ class TestConfirmAdapterDelivery:
             assert _confirm_adapter_delivery(result, "j1") is True
         assert "UNVERIFIED" not in caplog.text
 
+    @pytest.mark.parametrize("result", [
+        _SendResult(raw_response={"ok": False, "description": "rejected"}),
+        _SendResult(raw_response={"error": {"code": 429}}),
+        _SendResult(message_id=123, raw_response={"ok": False}),
+        _SendResult(success=False, message_id=123, raw_response={"ok": True}),
+    ])
+    def test_negative_evidence_is_not_a_success_receipt(self, result):
+        assert sched_delivery._delivery_has_evidence(result) is False
+
+    def test_positive_raw_ack_is_receipt_evidence(self):
+        assert sched_delivery._delivery_has_evidence(_SendResult(raw_response={"ok": True})) is True
+
     def test_evidence_free_success_is_accepted_but_warned(self, caplog):
         """Not proof of failure either — accept it, but say so in the log."""
         with caplog.at_level(logging.WARNING, logger="cron.scheduler"):
@@ -388,6 +400,14 @@ class TestUnverifiedDeliveryIsRecordedOnTheJob:
         receipt = sched_delivery._delivery_receipt(_job(), "telegram", result, outcome="failure")
         assert receipt["error_class"] == "unknown_error"
         assert "provider-secret-token" not in str(receipt)
+
+    def test_negative_standalone_response_is_not_reported_as_success(self):
+        result = {"raw_response": {"ok": False, "description": "private provider body"}}
+        error, _, _ = _run(_job(), "Nightly report.", None, standalone_result=result)
+        assert error is None
+        receipt = RECORDED_VERIFICATION[0][2][-1]
+        assert receipt["outcome"] == "unknown"
+        assert "private" not in str(receipt)
 
 
     def test_recorder_clears_a_stale_marker(self):
