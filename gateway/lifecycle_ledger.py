@@ -24,6 +24,26 @@ from typing import Any, Dict, Optional
 logger = logging.getLogger(__name__)
 
 
+def _read_cgroup_memory(root: Path = Path("/sys/fs/cgroup")) -> Optional[dict[str, int]]:
+    """Read the gateway process cgroup's finite v1/v2 memory sample."""
+    candidates = (
+        (root / "memory.max", root / "memory.current"),
+        (root / "memory" / "memory.limit_in_bytes", root / "memory" / "memory.usage_in_bytes"),
+    )
+    for limit_path, current_path in candidates:
+        try:
+            raw_limit = limit_path.read_text(encoding="ascii").strip()
+            if raw_limit == "max":
+                continue
+            limit = int(raw_limit)
+            current = int(current_path.read_text(encoding="ascii").strip())
+        except (OSError, ValueError):
+            continue
+        if 0 < limit < 1 << 60 and current >= 0:
+            return {"total_bytes": limit, "available_bytes": max(0, limit - current)}
+    return None
+
+
 def _process_hermes_home() -> Path:
     """HERMES_HOME for process-level identity files (ignore task overrides)."""
     from hermes_constants import get_hermes_home, get_process_hermes_home
@@ -71,6 +91,14 @@ def sample_memory() -> dict[str, Any]:
     sample.update(mem)
     if swap_total is not None and swap_free is not None:
         sample["swap_used_kib"] = swap_total - swap_free
+    # The dashboard reads the gateway heartbeat from a separate container, so
+    # it must never infer the gateway's limit from its own cgroup. Persist the
+    # gateway cgroup's finite limit and available bytes alongside the host
+    # sample. Unlimited/non-Linux hierarchies remain absent and preserve the
+    # host-pressure fallback.
+    if cgroup := _read_cgroup_memory():
+        sample["cgroup_total_bytes"] = cgroup["total_bytes"]
+        sample["cgroup_available_bytes"] = cgroup["available_bytes"]
     return sample
 
 

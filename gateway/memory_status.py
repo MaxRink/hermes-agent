@@ -20,6 +20,10 @@ _CRITICAL_AVAILABLE_KIB = 64 * 1024  # < 64 MiB available
 _CRITICAL_AVAILABLE_FRACTION = 0.05  # < 5% of MemTotal
 _ELEVATED_AVAILABLE_KIB = 128 * 1024  # < 128 MiB available
 _ELEVATED_AVAILABLE_FRACTION = 0.15  # < 15% of MemTotal
+# A container limit must not hide an absolute host emergency.  Keep this
+# separate from ``classify_pressure`` so a host with a large total can still
+# force a warning before the cgroup signal is selected.
+_HOST_ABSOLUTE_DANGER_KIB = 128 * 1024  # < 128 MiB available
 _PRESSURE_TIERS = (  # order-sensitive: worst first
     ("critical", _CRITICAL_AVAILABLE_KIB, _CRITICAL_AVAILABLE_FRACTION),
     ("elevated", _ELEVATED_AVAILABLE_KIB, _ELEVATED_AVAILABLE_FRACTION),
@@ -60,6 +64,26 @@ def classify_pressure(available_kib: Any, total_kib: Any) -> str:
     return "ok"
 
 
+def _host_absolute_danger(available_kib: Any) -> bool:
+    """Whether host available memory is low enough to override cgroup pressure."""
+    available = _nonneg_int(available_kib)
+    return available is not None and available < _HOST_ABSOLUTE_DANGER_KIB
+
+
+def _cgroup_from_heartbeat(mem: dict[str, Any]) -> Optional[dict[str, int]]:
+    """Recover the gateway cgroup sample written by its heartbeat producer.
+
+    The dashboard may run in a different container, so reading its own cgroup
+    would measure the dashboard rather than the gateway. Older heartbeats lack
+    these fields and intentionally use the host-pressure fallback.
+    """
+    total = _nonneg_int(mem.get("cgroup_total_bytes"))
+    available = _nonneg_int(mem.get("cgroup_available_bytes"))
+    if total is None or available is None or total <= 0 or available > total:
+        return None
+    return {"total_bytes": total, "available_bytes": available}
+
+
 def _read_state_files(home: Optional[Path]) -> tuple:
     """``(heartbeat, sentinel)`` dicts, each ``None`` when unreadable."""
     try:
@@ -81,11 +105,13 @@ def collect_memory_status(
     yield ``pressure="unknown"`` plus whatever fields could be recovered."""
     moment = now or datetime.now(UTC)
     status: dict[str, Any] = {
-        "pressure": "unknown", "gateway_rss_mb": None, "system_total_mb": None, "system_available_mb": None,
+        "pressure": "unknown", "host_pressure": "unknown", "container_pressure": "unknown",
+        "gateway_rss_mb": None, "system_total_mb": None, "system_available_mb": None,
+        "container_total_mb": None, "container_available_mb": None,
         "swap_used_mb": None, "sampled_at": None, "last_boot_unclean": False, "last_boot_suspected_oom": False,
         # Identity of the CURRENT life (sentinel started_at): the dashboard keys
         # banner dismissal on it so acknowledging one OOM restart does not mute the NEXT.
-        "boot_id": None,
+        "boot_id": None, "host_absolute_danger": False,
     }
 
     heartbeat, sentinel = _read_state_files(home)
@@ -101,7 +127,26 @@ def collect_memory_status(
                 # pressure stays "unknown" so a dead gateway's final gasp cannot
                 # render a live "critical" banner forever.
                 if 0 <= (moment - sampled_at).total_seconds() <= _HEARTBEAT_FRESH_TTL_S:
-                    status["pressure"] = classify_pressure(mem.get("mem_available_kib"), mem.get("mem_total_kib"))
+                    status["host_pressure"] = classify_pressure(mem.get("mem_available_kib"), mem.get("mem_total_kib"))
+                    status["host_absolute_danger"] = _host_absolute_danger(mem.get("mem_available_kib"))
+                    cgroup = _cgroup_from_heartbeat(mem)
+                    if cgroup is None:
+                        # Native/non-container installs retain the original host
+                        # signal. Containers use their effective limit instead,
+                        # so ample host RAM does not create a misleading banner.
+                        status["pressure"] = status["host_pressure"]
+                    else:
+                        total_kib = cgroup["total_bytes"] // 1024
+                        available_kib = cgroup["available_bytes"] // 1024
+                        status["container_total_mb"] = total_kib // 1024
+                        status["container_available_mb"] = available_kib // 1024
+                        status["container_pressure"] = classify_pressure(available_kib, total_kib)
+                        # A healthy cgroup cannot make an absolute host
+                        # emergency safe; retain the host danger signal while
+                        # still ignoring its normal fraction warning.
+                        status["pressure"] = (
+                            "critical" if status["host_absolute_danger"] else status["container_pressure"]
+                        )
 
     if sentinel:
         status["last_boot_unclean"] = bool(sentinel.get("prior_unclean_exit"))
