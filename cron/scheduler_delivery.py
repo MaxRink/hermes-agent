@@ -1070,16 +1070,87 @@ def _cron_delivery_notify_enabled(cfg: Optional[dict]) -> bool:
         return True
 
 
-def _record_delivery_verification(job: dict, unverified_targets: list) -> None:
+def _delivery_receipt(
+    job: dict, platform: str, result=None, *, outcome: str = "unknown",
+    error_class: str | None = None,
+) -> dict:
+    """Build bounded, content-free metadata for one cron platform delivery.
+
+    This deliberately omits target/chat identity, payload, tokens and provider error text.
+    ``message_id`` is retained only when the adapter supplies one; a completed cron run
+    without a transport result remains ``unknown``.
+    """
+    import re
+    allowed_error_classes = {
+        "no_adapter_response", "unconfirmed_result", "live_transport_error", "standalone_error",
+        "rate_limited", "timeout", "authentication", "network", "provider",
+    }
+    receipt = {
+        "job_id": str(job.get("id") or "unknown")[:128],
+        "execution_id": str(job.get("execution_id") or "unknown")[:128],
+        "platform": str(platform or "unknown")[:32],
+        "outcome": outcome if outcome in {"success", "failure", "unknown"} else "unknown",
+    }
+    if result is not None:
+        message_id = _result_field(result, "message_id")
+        if message_id is not None and re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", str(message_id)):
+            receipt["message_id"] = str(message_id)
+        raw = _result_field(result, "raw_response")
+        sent_at = raw.get("date") if isinstance(raw, dict) else None
+        if isinstance(sent_at, (int, float)) and not isinstance(sent_at, bool) and 0 < sent_at < 4_102_444_800:
+            receipt["sent_at"] = int(sent_at)
+        result_kind = _result_field(result, "error_kind")
+        if result_kind:
+            error_class = result_kind if result_kind in allowed_error_classes else "unknown_error"
+    if error_class:
+        receipt["error_class"] = error_class if error_class in allowed_error_classes else "unknown_error"
+    return receipt
+
+
+def _delivery_has_evidence(result) -> bool:
+    """Return whether an adapter result contains positive platform evidence.
+
+    A truthy response is not an acknowledgement: Telegram and standalone
+    adapters can return error-shaped payloads while a wrapper still provides
+    a result. Negative evidence takes precedence over any retained identifier.
+    """
+    if (_result_field(result, "success") is False
+            or _result_field(result, "ok") is False
+            or _result_field(result, "error") not in (None, "", False)):
+        return False
+    raw = _result_field(result, "raw_response")
+    if isinstance(raw, dict):
+        if raw.get("ok") is False or raw.get("error") not in (None, "", False):
+            return False
+    message_id = _result_field(result, "message_id")
+    if message_id is not None and not isinstance(message_id, bool) and str(message_id).strip():
+        return True
+    if not isinstance(raw, dict):
+        return False
+    if raw.get("ok") is True:
+        return True
+    raw_message_id = raw.get("message_id")
+    if raw_message_id is not None and not isinstance(raw_message_id, bool) and str(raw_message_id).strip():
+        return True
+    raw_message_ids = raw.get("message_ids")
+    return isinstance(raw_message_ids, (list, tuple)) and any(
+        item is not None and not isinstance(item, bool) and str(item).strip()
+        for item in raw_message_ids
+    )
+
+
+def _record_delivery_verification(job: dict, unverified_targets: list, delivery_receipts: list | None = None) -> None:
     """Persist ``last_delivery_unverified``: list of ``platform:chat_id[:thread_id]`` targets acked with no
     evidence, or None, alongside queued Bot Chat receipts. Never raises (bookkeeping must not fail a
     delivery)."""
     new_value = list(unverified_targets) or None
+    receipts_value = list(delivery_receipts or [])[-32:] or None
     queued = {target: receipt for target, receipt in
               job.get("_bot_chat_delivery_receipts", {}).items()
               if receipt["status"] in ("queued", "claimed")} or None
     values = {key: value for key, value in {
         "last_delivery_unverified": new_value, "last_delivery_queued": queued,
+        "last_delivery_receipts": receipts_value,
     }.items() if (job.get(key) or None) != value}
     if not values:
         return
@@ -1265,7 +1336,7 @@ _LIVE_SEND_CONFIRM_TIMEOUT_SECS = 60
 
 def _live_send_text(
     t: _TargetDelivery, text_to_send: str, route_thread_id: Optional[str], route_metadata: dict, *,
-    target_errors: list, delivery_errors: list, unverified_targets: list,
+    target_errors: list, delivery_errors: list, unverified_targets: list, delivery_receipts: list | None = None,
 ) -> tuple[bool, bool, Any]:
     """Schedule the text send on the gateway loop; returns ``(adapter_ok, timed_out, message_id)``.
     Re-raises a real send error so the caller falls through to standalone."""
@@ -1342,6 +1413,11 @@ def _live_send_text(
         unverified_targets.append(t.where)
 
     if not send_success:
+        if delivery_receipts is not None:
+            delivery_receipts.append(_delivery_receipt(
+                job, t.platform_name, send_result,
+                outcome="unknown" if send_result is None else "failure",
+                error_class="no_adapter_response" if send_result is None else "unconfirmed_result"))
         if send_result is None:
             err, shape = "no response from adapter", "None"
         elif isinstance(send_result, dict):
@@ -1355,6 +1431,10 @@ def _live_send_text(
         _warn_live_lane_failure(job, msg, t.is_relay)
         target_errors.append(msg)
         return False, False, None
+    if delivery_receipts is not None:
+        delivery_receipts.append(_delivery_receipt(
+            job, t.platform_name, send_result,
+            outcome="success" if _delivery_has_evidence(send_result) else "unknown"))
     if send_raw_response and t.thread_id and send_raw_response.get("thread_fallback"):
         requested_thread_id = send_raw_response.get("requested_thread_id") or t.thread_id
         _note_target_error(
@@ -1437,7 +1517,7 @@ def _seed_live_delivery_sessions(t: _TargetDelivery, delivered_message_id) -> No
 
 def _deliver_via_live_adapter(
     t: _TargetDelivery, cleaned_text: str, media_files: list, *, target_errors: list,
-    delivery_errors: list, unverified_targets: list,
+    delivery_errors: list, unverified_targets: list, delivery_receipts: list | None = None,
 ) -> bool:
     """Deliver one target via the live gateway adapter; True once delivered. ``target_errors`` =
     this lane's soft failures (surfaced only if standalone also fails); ``delivery_errors`` =
@@ -1460,7 +1540,7 @@ def _deliver_via_live_adapter(
             adapter_ok, timed_out, delivered_message_id = _live_send_text(
                 t, text_to_send, route_thread_id, route_metadata,
                 target_errors=target_errors, delivery_errors=delivery_errors,
-                unverified_targets=unverified_targets,
+                unverified_targets=unverified_targets, delivery_receipts=delivery_receipts,
             )
 
         # Media rides the same DM-topic-aware routing as text. Skipped after a confirmation
@@ -1494,6 +1574,9 @@ def _deliver_via_live_adapter(
             _seed_live_delivery_sessions(t, delivered_message_id)
     except Exception as e:
         err_msg = f"live adapter delivery to {t.where} failed: {e}"
+        if delivery_receipts is not None:
+            delivery_receipts.append(_delivery_receipt(
+                job, t.platform_name, outcome="failure", error_class="live_transport_error"))
         if not any(err_msg in err for err in target_errors):
             target_errors.append(err_msg)
         _warn_live_lane_failure(job, err_msg, t.is_relay)
@@ -1598,6 +1681,7 @@ def _queue_for_live_reconnect(t: _TargetDelivery, content: str, media_files: lis
 
 def _deliver_standalone(
     t: _TargetDelivery, content: str, media_files: list, target_errors: list, delivery_errors: list,
+    delivery_receipts: list | None = None,
 ) -> None:
     """Standalone fallback for a target the live lane did not deliver."""
     job = t.job
@@ -1608,6 +1692,19 @@ def _deliver_standalone(
         delivery_errors.extend(target_errors)
         return
     result, err = _standalone_send(t, content, media_files)
+    if delivery_receipts is not None:
+        if result is None and err is None:
+            receipt_outcome = "unknown"
+        elif err is None and isinstance(result, dict) and result.get("error"):
+            receipt_outcome = "failure"
+        elif _delivery_has_evidence(result):
+            receipt_outcome = "success"
+        else:
+            receipt_outcome = "unknown"
+        delivery_receipts.append(_delivery_receipt(
+            job, t.platform_name, result,
+            outcome=receipt_outcome,
+            error_class="standalone_error" if err is not None else None))
     if err is None and result and result.get("error"):
         # Not inside an except block — the error comes from the result dict, no traceback.
         err = f"delivery error: {result['error']} (target {t.where})"
@@ -1771,9 +1868,10 @@ def _deliver_result(
     ``failure_deliver`` override when present (NS-788). Returns None on success, else an error."""
     job.pop("_bot_chat_delivery_receipts", None)
     job.pop("_notification_all_targets_suppressed", None)
+    delivery_receipts: list = []
     targets = _resolve_delivery_targets(job, for_failure=for_failure)
     if not targets:
-        _record_delivery_verification(job, [])
+        _record_delivery_verification(job, [], delivery_receipts)
         return _unresolved_delivery_outcome(job, for_failure)
 
     # Restart-safe workers have no live gateway adapters: hand the send back through a durable
@@ -1787,7 +1885,7 @@ def _deliver_result(
             and any(target["platform"] != BOT_CHAT_PLATFORM for target in targets)):
         from cron.delivery_queue import enqueue_and_wait
 
-        _record_delivery_verification(job, [])
+        _record_delivery_verification(job, [], delivery_receipts)
         error = enqueue_and_wait(external_execution, job, content, for_failure=for_failure)
         from cron.delivery_queue import get_status
         delivery_status = get_status(external_execution)
@@ -1899,11 +1997,12 @@ def _deliver_result(
         delivered = t.live_adapter_ready and _deliver_via_live_adapter(
             t, cleaned_delivery_content, media_files,
             target_errors=target_errors, delivery_errors=delivery_errors,
-            unverified_targets=unverified_targets,
+            unverified_targets=unverified_targets, delivery_receipts=delivery_receipts,
         )
         if not delivered:
             _deliver_standalone(
-                t, cleaned_delivery_content, media_files, target_errors, delivery_errors)
+                t, cleaned_delivery_content, media_files, target_errors, delivery_errors,
+                delivery_receipts=delivery_receipts)
 
     # Filter-time drops apply to every target; report them once. A run whose every target was
     # suppressed sent nothing, so there is no drop to report.
@@ -1911,7 +2010,7 @@ def _deliver_result(
         job["_notification_all_targets_suppressed"] = True
     else:
         delivery_errors.extend(policy_drop_errors)
-    _record_delivery_verification(job, unverified_targets)
+    _record_delivery_verification(job, unverified_targets, delivery_receipts)
     return "; ".join(delivery_errors) if delivery_errors else None
 
 
