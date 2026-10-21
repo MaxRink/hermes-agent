@@ -1,25 +1,4 @@
-# Dependabot configuration for hermes-agent.
-#
-# Deliberately scoped to github-actions only.
-#
-# We do NOT enable Dependabot for pip / npm / any source-dependency ecosystem
-# because we pin source dependencies exactly (uv.lock, package-lock.json) as
-# part of our supply-chain posture. Automatic version-bump PRs against those
-# pins would undermine the strategy — pins are moved deliberately, after
-# review, not on a schedule.
-#
-# github-actions is the exception: action pins (we use full commit SHAs per
-# supply-chain policy) must be updated when upstream actions publish
-# patches — usually themselves security fixes. Dependabot opens a PR with
-# the new SHA and release notes; we review and merge like any other PR.
-#
-# Security-update PRs for source dependencies (opened ONLY when a CVE is
-# published affecting a currently-pinned version) are enabled separately
-# via the repo's Dependabot security updates setting
-# (Settings → Code security → Dependabot → Dependabot security updates).
-# Those are CVE-only, not schedule-driven, and do not conflict with our
-# pinning strategy — they fire when a pinned version becomes known-bad,
-# which is exactly when we want to move the pin.
+# Dependency updates are reviewed as pull requests; exact pins remain in manifests and lockfiles.
 
 version: 2
 updates:
@@ -42,3 +21,120 @@ updates:
         update-types:
           - "minor"
           - "patch"
+  - package-ecosystem: cargo
+    directory: /apps/bootstrap-installer/src-tauri
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      routine-updates:
+        patterns:
+        - '*'
+        update-types:
+        - minor
+        - patch
+  - package-ecosystem: docker
+    directories:
+    - /
+    - /docker
+    - /scripts/termux
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      routine-updates:
+        patterns:
+        - '*'
+        update-types:
+        - minor
+        - patch
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      routine-updates:
+        patterns:
+        - '*'
+        update-types:
+        - minor
+        - patch
+  - package-ecosystem: github-actions
+    directories:
+    - /.github/actions/check-clean-worktree
+    - /.github/actions/desktop-build-cache
+    - /.github/actions/detect-changes
+    - /.github/actions/e2e-screen-record
+    - /.github/actions/get-app-token
+    - /.github/actions/nix-setup
+    - /.github/actions/plugin-validate
+    - /.github/actions/retry
+    - /.github/actions/save-pm-cache
+    - /.github/actions/setup-pm
+    - /.github/actions/setup-pm/prune
+    - /.github/actions/setup-windows-build-deps
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      routine-updates:
+        patterns:
+        - '*'
+        update-types:
+        - minor
+        - patch
+  - package-ecosystem: nix
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      routine-updates:
+        patterns:
+        - '*'
+        update-types:
+        - minor
+        - patch
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      routine-updates:
+        patterns:
+        - '*'
+        update-types:
+        - minor
+        - patch
+  - package-ecosystem: pip
+    directories:
+    - /hermes_cli
+    - /hermes_cli/subcommands
+    - /optional-skills/finance/dcf-model
+    - /skills/productivity/google-workspace/scripts
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      routine-updates:
+        patterns:
+        - '*'
+        update-types:
+        - minor
+        - patch
+  - package-ecosystem: uv
+    directories:
+    - /
+    - /pm
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      routine-updates:
+        patterns:
+        - '*'
+        update-types:
+        - minor
+        - patch
