@@ -122,7 +122,7 @@
     "dompurify": "3.4.17",
     "driver.js": "1.8.0",
     "electron-updater": "6.8.9",
-    "emojibase-data": "16.0.3",
+    "emojibase-data": "17.0.0",
     "fflate": "0.8.3",
     "frimousse": "0.3.0",
     "hast-util-from-html-isomorphic": "2.0.0",
