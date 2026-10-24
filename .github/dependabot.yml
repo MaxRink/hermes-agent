@@ -7,7 +7,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     labels:
       - "dependencies"
       - "github-actions"
@@ -25,7 +25,7 @@ updates:
     directory: /apps/bootstrap-installer/src-tauri
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     groups:
       routine-updates:
         patterns:
@@ -40,7 +40,7 @@ updates:
     - /scripts/termux
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     groups:
       routine-updates:
         patterns:
@@ -52,7 +52,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     groups:
       routine-updates:
         patterns:
@@ -76,7 +76,7 @@ updates:
     - /.github/actions/setup-windows-build-deps
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     groups:
       routine-updates:
         patterns:
@@ -88,7 +88,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     groups:
       routine-updates:
         patterns:
@@ -100,7 +100,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     groups:
       routine-updates:
         patterns:
@@ -116,7 +116,7 @@ updates:
     - /skills/productivity/google-workspace/scripts
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     groups:
       routine-updates:
         patterns:
@@ -130,7 +130,7 @@ updates:
     - /pm
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     groups:
       routine-updates:
         patterns:
